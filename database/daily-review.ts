@@ -80,6 +80,30 @@ export const getDailyReviewByDate = async (date: Date): Promise<DailyReview | nu
   }, 'getDailyReviewByDate');
 };
 
+export const updateDailyReview = async (id: number, data: DailyReviewInput): Promise<boolean> => {
+  return withDatabase(async (db) => {
+    const result = await db.runAsync(
+      `UPDATE daily_reviews SET
+        social_did = ?, social_wished = ?, social_ratings = ?,
+        productivity_did = ?, productivity_wished = ?, productivity_ratings = ?,
+        wellness = ?, news_types = ?
+      WHERE id = ?`,
+      [
+        JSON.stringify(data.socialDid),
+        JSON.stringify(data.socialWished),
+        JSON.stringify(data.socialRatings),
+        JSON.stringify(data.productivityDid),
+        JSON.stringify(data.productivityWished),
+        JSON.stringify(data.productivityRatings),
+        data.wellness,
+        JSON.stringify(data.newsTypes),
+        id,
+      ]
+    );
+    return result.changes > 0;
+  }, 'updateDailyReview');
+};
+
 export const deleteDailyReview = async (id: number): Promise<boolean> => {
   return withDatabase(async (db) => {
     const result = await db.runAsync(

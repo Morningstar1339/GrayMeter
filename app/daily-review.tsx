@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { StyleSheet, TouchableOpacity, View, ScrollView, Alert } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -6,7 +6,7 @@ import { useRouter } from 'expo-router';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { Ionicons } from '@expo/vector-icons';
 import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
-import { saveDailyReview } from '@/database/daily-review';
+import { saveDailyReview, getDailyReviewByDate, updateDailyReview } from '@/database/daily-review';
 
 const SOCIAL_CATEGORIES = ['Incidental', 'Friendly', 'Flirtatious', 'Familial'];
 
@@ -32,6 +32,7 @@ export default function DailyReviewScreen() {
   
   useHierarchicalBack('daily-review');
   
+  const [existingId, setExistingId] = useState<number | null>(null);
   const [isSaved, setIsSaved] = useState(false);
   const [data, setData] = useState<DailyReviewData>({
     socialDid: [],
@@ -43,6 +44,30 @@ export default function DailyReviewScreen() {
     wellness: null,
     newsTypes: [],
   });
+
+  useEffect(() => {
+    const loadExistingReview = async () => {
+      try {
+        const existing = await getDailyReviewByDate(new Date());
+        if (existing) {
+          setExistingId(existing.id);
+          setData({
+            socialDid: JSON.parse(existing.social_did || '[]'),
+            socialWished: JSON.parse(existing.social_wished || '[]'),
+            socialRatings: JSON.parse(existing.social_ratings || '{}'),
+            productivityDid: JSON.parse(existing.productivity_did || '[]'),
+            productivityWished: JSON.parse(existing.productivity_wished || '[]'),
+            productivityRatings: JSON.parse(existing.productivity_ratings || '{}'),
+            wellness: existing.wellness != null ? Number(existing.wellness) : null,
+            newsTypes: JSON.parse(existing.news_types || '[]'),
+          });
+        }
+      } catch (error) {
+        console.error('Failed to load existing daily review:', error);
+      }
+    };
+    loadExistingReview();
+  }, []);
 
   const toggleSocialDid = (category: string) => {
     setData(prev => {
@@ -117,7 +142,11 @@ export default function DailyReviewScreen() {
         ...data,
         wellness: data.wellness !== null ? String(data.wellness) : null,
       };
-      await saveDailyReview(dataToSave);
+      if (existingId != null) {
+        await updateDailyReview(existingId, dataToSave);
+      } else {
+        await saveDailyReview(dataToSave);
+      }
       setIsSaved(true);
       setTimeout(() => {
         router.back();
