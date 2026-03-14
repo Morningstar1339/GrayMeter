@@ -219,6 +219,14 @@ export default function ActivitiesScreen() {
     [handleAddActivity, tintColor]
   );
 
+  const renderEmptyActivities = useCallback(() => (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="list-outline" size={64} color="#8E8E93" />
+      <ThemedText style={styles.emptyText}>No activities yet</ThemedText>
+      <ThemedText style={styles.emptySubtext}>Tap "Add Activity" below to create one</ThemedText>
+    </View>
+  ), []);
+
   const keyExtractor = useCallback((item: Activity) => item.id.toString(), []);
 
   const listData = useMemo(() => [...activities], [activities]);
@@ -319,6 +327,7 @@ export default function ActivitiesScreen() {
             maxToRenderPerBatch={10}
             windowSize={21}
             removeClippedSubviews={true}
+            ListEmptyComponent={renderEmptyActivities}
             ListFooterComponent={renderAddButton}
             getItemLayout={(data, index) => {
               void data;
