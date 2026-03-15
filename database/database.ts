@@ -311,7 +311,26 @@ const createTables = async (db: SQLite.SQLiteDatabase): Promise<void> => {
   `);
   
   logInfo('createTables', 'All database tables created successfully');
-  
+
+  // Seed default activities if table is empty
+  try {
+    const activityCount = await db.getFirstAsync<{ count: number }>('SELECT COUNT(*) as count FROM activities');
+    if (activityCount && activityCount.count === 0) {
+      await db.execAsync(`
+        INSERT INTO activities (name, default_value, unit, icon_id, color) VALUES
+          ('Walking', 30, 'minutes', 'walk', '#4CAF50'),
+          ('Running', 30, 'minutes', 'fitness', '#FF5722'),
+          ('Meditation', 15, 'minutes', 'leaf', '#9C27B0'),
+          ('Reading', 30, 'minutes', 'book', '#2196F3'),
+          ('Stretching', 15, 'minutes', 'barbell', '#FF9800'),
+          ('Cycling', 30, 'minutes', 'bicycle', '#009688');
+      `);
+      logInfo('createTables', 'Seeded default activities');
+    }
+  } catch (e: any) {
+    logInfo('createTables', 'Activities seed skipped: ' + e.message);
+  }
+
   await runMigrations(db);
 };
 

@@ -335,6 +335,7 @@ export default function RootLayout() {
           <Stack.Screen name="database-debug" options={{ headerShown: false }} />
           <Stack.Screen name="invariant-test" options={{ headerShown: false }} />
           <Stack.Screen name="activities" options={{ headerShown: false }} />
+          <Stack.Screen name="activity-details" options={{ headerShown: false }} />
           <Stack.Screen name="add-activity" options={{ headerShown: false }} />
           <Stack.Screen name="edit-activity" options={{ headerShown: false }} />
           <Stack.Screen name="log-activity" options={{ headerShown: false }} />

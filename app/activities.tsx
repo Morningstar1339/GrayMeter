@@ -118,7 +118,7 @@ export default function ActivitiesScreen() {
   const handleActivityPress = useCallback(
     (activity: Activity) => {
       router.push({
-        pathname: '/log-activity',
+        pathname: '/activity-details',
         params: {
           id: activity.id.toString(),
           name: activity.name,
