@@ -163,23 +163,38 @@ export default function SupplementsScreen() {
     return Object.entries(grouped).map(([title, data]) => ({ title, data }));
   }, [logHistory]);
 
+  const supplementParams = useCallback((supplement: Supplement) => ({
+    id: supplement.id.toString(),
+    name: supplement.name,
+    default_dosage: supplement.default_dosage.toString(),
+    dosage_unit: supplement.dosage_unit,
+    icon_id: supplement.icon_id || 'medical',
+    color: supplement.color || '#007AFF',
+    schedule_enabled: supplement.schedule_enabled.toString(),
+    study_enabled: supplement.study_enabled.toString(),
+  }), []);
+
   const handleSupplementPress = useCallback(
     (supplement: Supplement) => {
       router.push({
-        pathname: '/log-supplement',
-        params: {
-          id: supplement.id.toString(),
-          name: supplement.name,
-          default_dosage: supplement.default_dosage.toString(),
-          dosage_unit: supplement.dosage_unit,
-          icon_id: supplement.icon_id || 'medical',
-          color: supplement.color || '#007AFF',
-          schedule_enabled: supplement.schedule_enabled.toString(),
-          study_enabled: supplement.study_enabled.toString(),
-        },
+        pathname: '/supplement-details',
+        params: supplementParams(supplement),
       });
     },
-    [router]
+    [router, supplementParams]
+  );
+
+  const handleSupplementDetails = useCallback(
+    (supplement: Supplement, event?: any) => {
+      if (event) {
+        event.stopPropagation();
+      }
+      router.push({
+        pathname: '/supplement-details',
+        params: supplementParams(supplement),
+      });
+    },
+    [router, supplementParams]
   );
 
   const handleAddSupplement = useCallback(() => {
@@ -197,19 +212,10 @@ export default function SupplementsScreen() {
       }
       router.push({
         pathname: '/edit-supplement',
-        params: {
-          id: supplement.id.toString(),
-          name: supplement.name,
-          default_dosage: supplement.default_dosage.toString(),
-          dosage_unit: supplement.dosage_unit,
-          icon_id: supplement.icon_id || 'medical',
-          color: supplement.color || '#007AFF',
-          schedule_enabled: supplement.schedule_enabled.toString(),
-          study_enabled: supplement.study_enabled.toString(),
-        },
+        params: supplementParams(supplement),
       });
     },
-    [router]
+    [router, supplementParams]
   );
 
   const getClockIconColor = useCallback(
@@ -279,6 +285,13 @@ export default function SupplementsScreen() {
                 <Ionicons name="analytics-outline" size={16} color={textColor} style={styles.studyIcon} />
               )}
               <TouchableOpacity
+                style={styles.infoButton}
+                onPress={(event) => handleSupplementDetails(supplement, event)}
+                hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+              >
+                <Ionicons name="information-circle-outline" size={18} color={textColor} />
+              </TouchableOpacity>
+              <TouchableOpacity
                 style={styles.editButton}
                 onPress={(event) => handleEditSupplement(supplement, event)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
@@ -290,7 +303,7 @@ export default function SupplementsScreen() {
         </TouchableOpacity>
       );
     },
-    [exclusionStatuses, getClockIconColor, handleEditSupplement, handleSupplementPress]
+    [exclusionStatuses, getClockIconColor, handleEditSupplement, handleSupplementPress, handleSupplementDetails]
   );
 
   const renderAddButton = useCallback(
@@ -345,6 +358,14 @@ export default function SupplementsScreen() {
       <Ionicons name="time-outline" size={64} color="#8E8E93" />
       <ThemedText style={styles.emptyText}>No supplements logged yet</ThemedText>
       <ThemedText style={styles.emptySubtext}>Tap a supplement to log a dose</ThemedText>
+    </View>
+  ), []);
+
+  const renderEmptySupplements = useCallback(() => (
+    <View style={styles.emptyContainer}>
+      <Ionicons name="medical-outline" size={64} color="#8E8E93" />
+      <ThemedText style={styles.emptyText}>No supplements added</ThemedText>
+      <ThemedText style={styles.emptySubtext}>Tap "Add Supplement" below to get started</ThemedText>
     </View>
   ), []);
 
@@ -403,6 +424,7 @@ export default function SupplementsScreen() {
             maxToRenderPerBatch={10}
             windowSize={21}
             removeClippedSubviews={true}
+            ListEmptyComponent={renderEmptySupplements}
             ListFooterComponent={renderAddButton}
             getItemLayout={(data, index) => {
               void data;
@@ -522,6 +544,13 @@ const styles = StyleSheet.create({
   },
   warningIcon: {
     marginRight: 4,
+  },
+  infoButton: {
+    padding: 4,
+    minHeight: 44,
+    minWidth: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   editButton: {
     padding: 4,

@@ -309,6 +309,7 @@ export default function RootLayout() {
           <Stack.Screen name="add-supplement" options={{ headerShown: false }} />
           <Stack.Screen name="edit-supplement" options={{ headerShown: false }} />
           <Stack.Screen name="log-supplement" options={{ headerShown: false }} />
+          <Stack.Screen name="supplement-details" options={{ headerShown: false }} />
           {/* DISABLED FOR V1 - Re-enable for Mk II */}
           {/* <Stack.Screen name="body-diagram" options={{ headerShown: false }} /> */}
           {/* <Stack.Screen name="symptom-selection" options={{ headerShown: false }} /> */}
