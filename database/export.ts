@@ -251,21 +251,27 @@ export const exportSleepLogs = async (options?: ExportOptions): Promise<string> 
 // Export schedules
 export const exportSchedules = async (): Promise<string> => {
   const db = await openDatabase();
-  
+
   const schedules = await db.getAllAsync(`
-    SELECT 
+    SELECT
       sch.id,
+      sch.schedule_type,
       s.name as supplement_name,
       sch.supplement_id,
+      a.name as activity_name,
+      sch.activity_id,
+      sch.test_type,
       sch.time,
-      sch.repeat_interval,
-      sch.enabled
+      sch.days,
+      sch.enabled,
+      sch.created_at
     FROM schedules sch
-    JOIN supplements s ON sch.supplement_id = s.id
-    ORDER BY s.name, sch.time
+    LEFT JOIN supplements s ON sch.supplement_id = s.id
+    LEFT JOIN activities a ON sch.activity_id = a.id
+    ORDER BY sch.schedule_type, sch.time
   `);
-  
-  const headers = ['id', 'supplement_name', 'supplement_id', 'time', 'repeat_interval', 'enabled'];
+
+  const headers = ['id', 'schedule_type', 'supplement_name', 'supplement_id', 'activity_name', 'activity_id', 'test_type', 'time', 'days', 'enabled', 'created_at'];
   return arrayToCsv(schedules, headers);
 };
 
@@ -395,22 +401,21 @@ export const exportStudyProtocols = async (): Promise<string> => {
 // Export all data as a combined package
 export const exportAllData = async (options?: ExportOptions): Promise<{[key: string]: string}> => {
   const exports: {[key: string]: string} = {};
-  
-  // Always export reference tables regardless of date range
-  exports.supplements = await exportSupplements();
-  exports.symptoms = await exportSymptoms();
-  exports.schedules = await exportSchedules();
-  exports.exclusions = await exportExclusions();
-  exports.study_protocols = await exportStudyProtocols();
-  
-  // Export time-based data with optional date filtering
-  exports.supplement_logs = await exportSupplementLogs(options);
-  exports.symptom_logs = await exportSymptomLogs(options);
-  exports.cognitive_test_results = await exportCognitiveTestResults(options);
-  exports.sleep_logs = await exportSleepLogs(options);
-  exports.activity_logs = await exportActivityLogs(options);
-  exports.daily_reviews = await exportDailyReviews(options);
-  
+  const tables = options?.tables;
+
+  const shouldExport = (key: string) => !tables || tables.includes(key);
+
+  // Reference tables
+  if (shouldExport('supplements')) exports.supplements = await exportSupplements();
+  if (shouldExport('schedules')) exports.schedules = await exportSchedules();
+
+  // Time-based data with optional date filtering
+  if (shouldExport('supplement_logs')) exports.supplement_logs = await exportSupplementLogs(options);
+  if (shouldExport('cognitive_test_results')) exports.cognitive_test_results = await exportCognitiveTestResults(options);
+  if (shouldExport('sleep_logs')) exports.sleep_logs = await exportSleepLogs(options);
+  if (shouldExport('activity_logs')) exports.activity_logs = await exportActivityLogs(options);
+  if (shouldExport('daily_reviews')) exports.daily_reviews = await exportDailyReviews(options);
+
   return exports;
 };
 
@@ -435,8 +440,12 @@ export const getExportStats = async (): Promise<{[key: string]: number}> => {
   ];
   
   for (const tableQuery of tableQueries) {
-    const result = await db.getAllAsync(tableQuery.query);
-    stats[tableQuery.name] = (result[0] as any).count;
+    try {
+      const result = await db.getAllAsync(tableQuery.query);
+      stats[tableQuery.name] = (result[0] as any).count;
+    } catch {
+      stats[tableQuery.name] = 0;
+    }
   }
   
   return stats;

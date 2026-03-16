@@ -1,5 +1,6 @@
-import { SupplementLog, getAllSupplements, getSupplementLogs } from './supplements';
+import { SupplementLog, getAllSupplements, getSupplementLogs, getSupplementLogsWithDetails, SupplementLogWithDetails, Supplement } from './supplements';
 import { getCognitiveTestResults } from './cognitive-tests';
+import { withDatabase, asyncStorageGet, openDatabase, isDatabaseInitialized } from './database';
 
 export type TestType = 'reflexes' | 'memory' | 'judgment' | 'rock_dodger' | 'pattern_matcher' | 'tile_puzzle' | 'n_back' | 'stroop';
 export type TimingWindow = '0-2h' | '2-4h' | '4-8h' | '8-24h';
@@ -58,6 +59,23 @@ export interface DataQuality {
   recommendations: string[];
 }
 
+export interface SupplementSummaryItem {
+  supplementId: number;
+  supplementName: string;
+  totalLogs: number;
+  totalDosage: number;
+  dosageUnit: string;
+  lastTaken: number; // timestamp
+}
+
+export interface TestSummaryItem {
+  testType: TestType;
+  totalResults: number;
+  averageScore: number;
+  bestScore: number;
+  lastTaken: number; // timestamp
+}
+
 export interface InsightsSummary {
   topFindings: CorrelationResult[];
   bySupplementCorrelations: Map<number, CorrelationResult[]>;
@@ -66,6 +84,8 @@ export interface InsightsSummary {
   doseResponses: DoseResponseResult[];
   baselines: BaselineData[];
   dataQuality: DataQuality;
+  supplementSummaries: SupplementSummaryItem[];
+  testSummaries: TestSummaryItem[];
 }
 
 const TIMING_WINDOWS: { window: TimingWindow; minHours: number; maxHours: number }[] = [
@@ -75,9 +95,9 @@ const TIMING_WINDOWS: { window: TimingWindow; minHours: number; maxHours: number
   { window: '8-24h', minHours: 8, maxHours: 24 },
 ];
 
-const MIN_SAMPLE_SIZE_LOW = 3;
-const MIN_SAMPLE_SIZE_MEDIUM = 7;
-const MIN_SAMPLE_SIZE_HIGH = 15;
+const MIN_SAMPLE_SIZE_LOW = 1;
+const MIN_SAMPLE_SIZE_MEDIUM = 5;
+const MIN_SAMPLE_SIZE_HIGH = 12;
 
 function calculateStandardDeviation(values: number[]): number {
   if (values.length === 0) return 0;
@@ -99,8 +119,8 @@ function calculatePercentChange(baseline: number, current: number): number {
 }
 
 export async function calculateBaselines(): Promise<BaselineData[]> {
-  const allTestResults = await getCognitiveTestResults();
-  const allSupplementLogs = await getSupplementLogs();
+  const allTestResults = await safeGetCognitiveTestResults();
+  const allSupplementLogs = await safeGetSupplementLogs();
   
   const testTypes: TestType[] = ['reflexes', 'memory', 'judgment', 'rock_dodger', 'pattern_matcher', 'tile_puzzle', 'n_back', 'stroop'];
   const baselines: BaselineData[] = [];
@@ -150,26 +170,26 @@ export async function calculateBaselines(): Promise<BaselineData[]> {
 }
 
 export async function analyzeTimingWindows(): Promise<CorrelationResult[]> {
-  const supplements = await getAllSupplements();
-  const allTestResults = await getCognitiveTestResults();
-  const allSupplementLogs = await getSupplementLogs();
+  const supplements = await safeGetAllSupplements();
+  const allTestResults = await safeGetCognitiveTestResults();
+  const allSupplementLogs = await safeGetSupplementLogs();
   const baselines = await calculateBaselines();
-  
+
   const correlations: CorrelationResult[] = [];
-  
+
   for (const supplement of supplements) {
     const supplementLogs = allSupplementLogs.filter(log => log.supplement_id === supplement.id);
-    
+
     if (supplementLogs.length === 0) continue;
-    
+
     const testTypes: TestType[] = ['reflexes', 'memory', 'judgment', 'rock_dodger', 'pattern_matcher', 'tile_puzzle', 'n_back', 'stroop'];
-    
+
     for (const testType of testTypes) {
       const baseline = baselines.find(b => b.testType === testType);
       if (!baseline) continue;
-      
+
       const testResults = allTestResults.filter(r => r.test_type === testType);
-      
+
       for (const timingWindow of TIMING_WINDOWS) {
         const matchingScores: number[] = [];
         
@@ -208,9 +228,9 @@ export async function analyzeTimingWindows(): Promise<CorrelationResult[]> {
 }
 
 export async function analyzeDoseResponse(): Promise<DoseResponseResult[]> {
-  const supplements = await getAllSupplements();
-  const allTestResults = await getCognitiveTestResults();
-  const allSupplementLogs = await getSupplementLogs();
+  const supplements = await safeGetAllSupplements();
+  const allTestResults = await safeGetCognitiveTestResults();
+  const allSupplementLogs = await safeGetSupplementLogs();
   
   const results: DoseResponseResult[] = [];
   
@@ -292,9 +312,9 @@ export async function analyzeDoseResponse(): Promise<DoseResponseResult[]> {
 }
 
 export async function detectStacks(): Promise<StackCorrelation[]> {
-  const supplements = await getAllSupplements();
-  const allTestResults = await getCognitiveTestResults();
-  const allSupplementLogs = await getSupplementLogs();
+  const supplements = await safeGetAllSupplements();
+  const allTestResults = await safeGetCognitiveTestResults();
+  const allSupplementLogs = await safeGetSupplementLogs();
   const baselines = await calculateBaselines();
   const individualCorrelations = await analyzeTimingWindows();
   
@@ -404,47 +424,152 @@ export async function detectStacks(): Promise<StackCorrelation[]> {
   return stackCorrelations.sort((a, b) => Math.abs(b.comparedToIndividual) - Math.abs(a.comparedToIndividual));
 }
 
+async function ensureDatabase(): Promise<void> {
+  if (!isDatabaseInitialized()) {
+    try {
+      await openDatabase();
+    } catch (e) {
+      console.warn('ensureDatabase: failed to open database:', e);
+    }
+  }
+}
+
+async function safeGetSupplementLogs(): Promise<SupplementLog[]> {
+  await ensureDatabase();
+  try {
+    return await getSupplementLogs();
+  } catch (error) {
+    console.warn('Failed to get supplement logs via supplements.ts, trying direct DB:', error);
+    try {
+      return await withDatabase(
+        async (db) => {
+          const result = await db.getAllAsync('SELECT * FROM supplement_logs ORDER BY timestamp DESC');
+          return result as SupplementLog[];
+        },
+        'safeGetSupplementLogs-direct',
+        async () => [] as SupplementLog[],
+      );
+    } catch (directError) {
+      console.warn('Direct DB query also failed:', directError);
+      return [];
+    }
+  }
+}
+
+async function safeGetAllSupplements(): Promise<Supplement[]> {
+  await ensureDatabase();
+  try {
+    return await getAllSupplements();
+  } catch (error) {
+    console.warn('Failed to get supplements via supplements.ts, trying direct DB:', error);
+    try {
+      return await withDatabase(
+        async (db) => {
+          const result = await db.getAllAsync('SELECT * FROM supplements ORDER BY name');
+          return result.map((row: any) => ({
+            ...row,
+            schedule_enabled: Boolean(row.schedule_enabled),
+            study_enabled: Boolean(row.study_enabled),
+          })) as Supplement[];
+        },
+        'safeGetAllSupplements-direct',
+        async () => [] as Supplement[],
+      );
+    } catch (directError) {
+      console.warn('Direct DB query also failed:', directError);
+      return [];
+    }
+  }
+}
+
+async function safeGetCognitiveTestResults(): Promise<Awaited<ReturnType<typeof getCognitiveTestResults>>> {
+  await ensureDatabase();
+  try {
+    return await getCognitiveTestResults();
+  } catch (error) {
+    console.warn('Failed to get cognitive test results:', error);
+    try {
+      // Try AsyncStorage directly as fallback
+      const results = await asyncStorageGet('cognitive_test_results');
+      return results.map((row: any) => ({
+        ...row,
+        raw_data: typeof row.raw_data === 'string' ? JSON.parse(row.raw_data) : row.raw_data,
+      }));
+    } catch (asyncError) {
+      console.warn('AsyncStorage fallback also failed:', asyncError);
+      return [];
+    }
+  }
+}
+
+async function safeGetSupplementLogsWithDetails(): Promise<SupplementLogWithDetails[]> {
+  try {
+    return await getSupplementLogsWithDetails();
+  } catch (error) {
+    console.warn('Failed to get supplement logs with details, trying direct DB:', error);
+    try {
+      return await withDatabase(
+        async (db) => {
+          const result = await db.getAllAsync(`
+            SELECT sl.id, sl.supplement_id, sl.timestamp, sl.dosage, sl.notes,
+              s.name as supplement_name, s.dosage_unit, s.icon_id, s.color
+            FROM supplement_logs sl
+            JOIN supplements s ON sl.supplement_id = s.id
+            ORDER BY sl.timestamp DESC
+          `);
+          return result as SupplementLogWithDetails[];
+        },
+        'safeGetSupplementLogsWithDetails-direct',
+        async () => [] as SupplementLogWithDetails[],
+      );
+    } catch (directError) {
+      console.warn('Direct DB query also failed:', directError);
+      return [];
+    }
+  }
+}
+
 export async function assessDataQuality(): Promise<DataQuality> {
-  const allSupplementLogs = await getSupplementLogs();
-  const allTestResults = await getCognitiveTestResults();
-  
+  const allSupplementLogs = await safeGetSupplementLogs();
+  const allTestResults = await safeGetCognitiveTestResults();
+
   const uniqueSupplements = new Set(allSupplementLogs.map(l => l.supplement_id)).size;
   const uniqueTestTypes = new Set(allTestResults.map(r => r.test_type)).size;
-  
+
   const allTimestamps = [
     ...allSupplementLogs.map(l => l.timestamp),
     ...allTestResults.map(r => r.timestamp),
   ];
-  
+
   let trackingDays = 0;
   if (allTimestamps.length > 0) {
     const minTimestamp = Math.min(...allTimestamps);
     const maxTimestamp = Math.max(...allTimestamps);
     trackingDays = Math.ceil((maxTimestamp - minTimestamp) / 86400);
   }
-  
+
   const recommendations: string[] = [];
-  
+
   if (allSupplementLogs.length < 10) {
     recommendations.push('Log more supplement intake to improve analysis accuracy');
   }
-  
+
   if (allTestResults.length < 10) {
     recommendations.push('Complete more cognitive tests to build your performance baseline');
   }
-  
+
   if (trackingDays < 14) {
     recommendations.push('Continue tracking for at least 2 weeks for meaningful patterns');
   }
-  
+
   if (uniqueTestTypes < 3) {
     recommendations.push('Try different test types to get a broader cognitive profile');
   }
-  
-  const sufficientData = allSupplementLogs.length >= 10 && 
-                         allTestResults.length >= 10 && 
+
+  const sufficientData = allSupplementLogs.length >= 10 &&
+                         allTestResults.length >= 10 &&
                          trackingDays >= 7;
-  
+
   return {
     totalSupplementLogs: allSupplementLogs.length,
     totalTestResults: allTestResults.length,
@@ -458,23 +583,93 @@ export async function assessDataQuality(): Promise<DataQuality> {
 
 export async function generateInsightsSummary(): Promise<InsightsSummary> {
   const dataQuality = await assessDataQuality();
-  const baselines = await calculateBaselines();
-  
+  let baselines: BaselineData[] = [];
+  try { baselines = await calculateBaselines(); } catch (e) { console.warn('Failed to calculate baselines:', e); }
+  const supplements = await safeGetAllSupplements();
+  const allSupplementLogs = await safeGetSupplementLogs();
+  const allTestResults = await safeGetCognitiveTestResults();
+
   let correlations: CorrelationResult[] = [];
   let stackInsights: StackCorrelation[] = [];
   let doseResponses: DoseResponseResult[] = [];
-  
-  if (dataQuality.sufficientData) {
-    correlations = await analyzeTimingWindows();
-    stackInsights = await detectStacks();
-    doseResponses = await analyzeDoseResponse();
+
+  // Always run analysis if there's any data, even below the "sufficient" threshold
+  if (allSupplementLogs.length > 0 && allTestResults.length > 0) {
+    try { correlations = await analyzeTimingWindows(); } catch (e) { console.warn('Failed to analyze timing windows:', e); }
+    try { stackInsights = await detectStacks(); } catch (e) { console.warn('Failed to detect stacks:', e); }
+    try { doseResponses = await analyzeDoseResponse(); } catch (e) { console.warn('Failed to analyze dose response:', e); }
   }
-  
-  const topFindings = [...correlations]
-    .filter(c => c.confidence !== 'low' || Math.abs(c.percentChange) > 15)
-    .sort((a, b) => Math.abs(b.percentChange) - Math.abs(a.percentChange))
-    .slice(0, 5);
-  
+
+  // Build basic supplement summaries (always shown even without correlations)
+  let supplementSummaries: SupplementSummaryItem[] = [];
+  if (supplements.length > 0) {
+    for (const supplement of supplements) {
+      const logs = allSupplementLogs.filter(l => l.supplement_id === supplement.id);
+      const totalDosage = logs.reduce((sum, l) => sum + l.dosage, 0);
+      const lastTaken = logs.length > 0 ? Math.max(...logs.map(l => l.timestamp)) : 0;
+      supplementSummaries.push({
+        supplementId: supplement.id,
+        supplementName: supplement.name,
+        totalLogs: logs.length,
+        totalDosage,
+        dosageUnit: supplement.dosage_unit,
+        lastTaken,
+      });
+    }
+  }
+
+  // Fallback: if supplements table returned empty but logs exist, build summaries from joined log data
+  if (supplementSummaries.length === 0 && (allSupplementLogs.length > 0 || dataQuality.totalSupplementLogs > 0)) {
+    const logsWithDetails = await safeGetSupplementLogsWithDetails();
+    const supplementMap = new Map<number, SupplementSummaryItem>();
+    for (const log of logsWithDetails) {
+      if (!supplementMap.has(log.supplement_id)) {
+        supplementMap.set(log.supplement_id, {
+          supplementId: log.supplement_id,
+          supplementName: log.supplement_name,
+          totalLogs: 0,
+          totalDosage: 0,
+          dosageUnit: log.dosage_unit,
+          lastTaken: 0,
+        });
+      }
+      const item = supplementMap.get(log.supplement_id)!;
+      item.totalLogs++;
+      item.totalDosage += log.dosage;
+      item.lastTaken = Math.max(item.lastTaken, log.timestamp);
+    }
+    supplementSummaries = Array.from(supplementMap.values());
+  }
+  supplementSummaries.sort((a, b) => b.lastTaken - a.lastTaken);
+
+  // Build basic test summaries (always shown even without correlations)
+  const testSummaries: TestSummaryItem[] = [];
+  const testTypes: TestType[] = ['reflexes', 'memory', 'judgment', 'rock_dodger', 'pattern_matcher', 'tile_puzzle', 'n_back', 'stroop'];
+  for (const testType of testTypes) {
+    const results = allTestResults.filter(r => r.test_type === testType);
+    if (results.length === 0) continue;
+    const scores = results.map(r => r.score);
+    const averageScore = scores.reduce((a, b) => a + b, 0) / scores.length;
+    const bestScore = Math.max(...scores);
+    const lastTaken = Math.max(...results.map(r => r.timestamp));
+    testSummaries.push({
+      testType,
+      totalResults: results.length,
+      averageScore,
+      bestScore,
+      lastTaken,
+    });
+  }
+  testSummaries.sort((a, b) => b.lastTaken - a.lastTaken);
+
+  // Show all correlations as top findings when data is limited; filter only with larger datasets
+  const topFindings = correlations.length <= 5
+    ? [...correlations].sort((a, b) => Math.abs(b.percentChange) - Math.abs(a.percentChange))
+    : [...correlations]
+        .filter(c => c.confidence !== 'low' || Math.abs(c.percentChange) > 15)
+        .sort((a, b) => Math.abs(b.percentChange) - Math.abs(a.percentChange))
+        .slice(0, 5);
+
   const bySupplementCorrelations = new Map<number, CorrelationResult[]>();
   for (const correlation of correlations) {
     if (!bySupplementCorrelations.has(correlation.supplementId)) {
@@ -482,7 +677,7 @@ export async function generateInsightsSummary(): Promise<InsightsSummary> {
     }
     bySupplementCorrelations.get(correlation.supplementId)!.push(correlation);
   }
-  
+
   const byTestCorrelations = new Map<TestType, CorrelationResult[]>();
   for (const correlation of correlations) {
     if (!byTestCorrelations.has(correlation.testType)) {
@@ -490,7 +685,7 @@ export async function generateInsightsSummary(): Promise<InsightsSummary> {
     }
     byTestCorrelations.get(correlation.testType)!.push(correlation);
   }
-  
+
   return {
     topFindings,
     bySupplementCorrelations,
@@ -499,6 +694,8 @@ export async function generateInsightsSummary(): Promise<InsightsSummary> {
     doseResponses,
     baselines,
     dataQuality,
+    supplementSummaries,
+    testSummaries,
   };
 }
 
@@ -533,5 +730,6 @@ export function getTestTypeLabel(testType: TestType): string {
     case 'pattern_matcher': return 'Pattern Matcher';
     case 'tile_puzzle': return 'Tile Puzzle';
     case 'n_back': return 'N-Back';
+    case 'stroop': return 'Stroop';
   }
 }

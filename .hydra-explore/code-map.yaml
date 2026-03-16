@@ -1,0 +1,44 @@
+screens:
+  insights-screen:
+    component: app/insights.tsx
+    database:
+      - database/correlation-analysis.ts
+      - database/supplements.ts
+      - database/cognitive-tests.ts
+      - database/database.ts
+    shared_state: []
+    key_imports:
+      - components/themed-text.tsx
+      - components/themed-view.tsx
+      - hooks/use-theme-color.ts
+
+  my-schedules:
+    component: app/my-schedules.tsx
+    database:
+      - database/database.ts
+    shared_state: []
+    key_imports:
+      - app/schedule-details.tsx
+      - components/themed-text.tsx
+
+  sleep-screen:
+    component: app/sleep-logs.tsx
+    database:
+      - database/database.ts
+    shared_state: []
+    key_imports:
+      - components/themed-text.tsx
+      - components/themed-view.tsx
+
+  export-data:
+    component: app/export.tsx
+    database:
+      - database/database.ts
+      - database/supplements.ts
+      - database/cognitive-tests.ts
+    shared_state: []
+    key_imports:
+      - components/themed-text.tsx
+
+shared:
+  database_schema: database/database.ts

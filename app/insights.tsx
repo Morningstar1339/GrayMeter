@@ -14,6 +14,8 @@ import {
   DoseResponseResult,
   DataQuality,
   TestType,
+  SupplementSummaryItem,
+  TestSummaryItem,
   formatPercentChange,
   formatConfidence,
   getTimingWindowLabel,
@@ -101,7 +103,7 @@ export default function InsightsScreen() {
         <ThemedText style={styles.dataQualityTitle}>Data Summary</ThemedText>
       </View>
       <ThemedText style={styles.dataQualityText}>
-        Based on {dataQuality.totalSupplementLogs} supplement logs and {dataQuality.totalTestResults} test results over {dataQuality.trackingDays} days
+        Based on {dataQuality.totalSupplementLogs} supplement logs across {dataQuality.uniqueSupplements} supplement{dataQuality.uniqueSupplements !== 1 ? 's' : ''} and {dataQuality.totalTestResults} test results across {dataQuality.uniqueTestTypes} test type{dataQuality.uniqueTestTypes !== 1 ? 's' : ''} over {dataQuality.trackingDays} days
       </ThemedText>
       {dataQuality.recommendations.length > 0 && (
         <View style={styles.recommendationsContainer}>
@@ -126,6 +128,12 @@ export default function InsightsScreen() {
           <ThemedText style={styles.correlationTest}>{getTestTypeLabel(correlation.testType)}</ThemedText>
         )}
       </View>
+      {correlation.sampleSize < 3 && (
+        <View style={[styles.preliminaryBadge, { backgroundColor: '#FF9500' + '20' }]}>
+          <Ionicons name="time-outline" size={12} color="#FF9500" />
+          <ThemedText style={styles.preliminaryText}>Preliminary — more data will improve accuracy</ThemedText>
+        </View>
+      )}
       <View style={styles.correlationContent}>
         <View style={styles.correlationMetric}>
           <ThemedText style={[styles.percentChange, { color: getChangeColor(correlation.percentChange) }]}>
@@ -144,7 +152,7 @@ export default function InsightsScreen() {
       </View>
       <View style={styles.scoreComparison}>
         <ThemedText style={styles.scoreLabel}>Baseline: {correlation.baselineScore.toFixed(1)}</ThemedText>
-        <ThemedText style={styles.scoreLabel}>Window: {correlation.windowScore.toFixed(1)}</ThemedText>
+        <ThemedText style={styles.scoreLabel}>After supplement: {correlation.windowScore.toFixed(1)}</ThemedText>
       </View>
     </View>
   );
@@ -245,6 +253,72 @@ export default function InsightsScreen() {
     </View>
   );
 
+  const formatTimeAgo = (timestamp: number): string => {
+    const now = Math.floor(Date.now() / 1000);
+    const diff = now - timestamp;
+    if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+    return `${Math.floor(diff / 86400)}d ago`;
+  };
+
+  const hasAnyInsights = (data: InsightsSummary): boolean => {
+    return data.topFindings.length > 0 || data.stackInsights.length > 0 || data.doseResponses.length > 0;
+  };
+
+  const hasAnyData = (data: InsightsSummary): boolean => {
+    return data.supplementSummaries.length > 0 || data.testSummaries.length > 0;
+  };
+
+  const renderSupplementSummaryCard = (item: SupplementSummaryItem) => (
+    <View key={`supp-summary-${item.supplementId}`} style={[styles.correlationCard, { borderColor: tintColor + '20' }]}>
+      <View style={styles.correlationHeader}>
+        <ThemedText style={styles.correlationSupplement}>{item.supplementName}</ThemedText>
+        {item.lastTaken > 0 && (
+          <ThemedText style={styles.confidenceText}>{formatTimeAgo(item.lastTaken)}</ThemedText>
+        )}
+      </View>
+      <View style={styles.correlationContent}>
+        <View style={styles.correlationMetric}>
+          <ThemedText style={[styles.percentChange, { color: tintColor, fontSize: 22 }]}>
+            {item.totalLogs}
+          </ThemedText>
+          <ThemedText style={styles.metricLabel}>doses logged</ThemedText>
+        </View>
+        <View style={styles.correlationDetails}>
+          {item.totalLogs > 0 ? (
+            <ThemedText style={styles.timingWindow}>
+              {item.totalDosage.toFixed(0)} {item.dosageUnit} total
+            </ThemedText>
+          ) : (
+            <ThemedText style={[styles.timingWindow, { opacity: 0.5 }]}>
+              No doses yet
+            </ThemedText>
+          )}
+        </View>
+      </View>
+    </View>
+  );
+
+  const renderTestSummaryCard = (item: TestSummaryItem) => (
+    <View key={`test-summary-${item.testType}`} style={[styles.correlationCard, { borderColor: tintColor + '20' }]}>
+      <View style={styles.correlationHeader}>
+        <ThemedText style={styles.correlationSupplement}>{getTestTypeLabel(item.testType)}</ThemedText>
+        <ThemedText style={styles.confidenceText}>{formatTimeAgo(item.lastTaken)}</ThemedText>
+      </View>
+      <View style={styles.correlationContent}>
+        <View style={styles.correlationMetric}>
+          <ThemedText style={[styles.percentChange, { color: tintColor, fontSize: 22 }]}>
+            {item.averageScore.toFixed(1)}
+          </ThemedText>
+          <ThemedText style={styles.metricLabel}>avg score ({item.totalResults} tests)</ThemedText>
+        </View>
+        <View style={styles.correlationDetails}>
+          <ThemedText style={styles.timingWindow}>Best: {item.bestScore.toFixed(1)}</ThemedText>
+        </View>
+      </View>
+    </View>
+  );
+
   const renderSummaryView = () => {
     if (!insights) return null;
 
@@ -252,9 +326,7 @@ export default function InsightsScreen() {
       <>
         {renderDataQuality(insights.dataQuality)}
 
-        {!insights.dataQuality.sufficientData ? (
-          renderEmptyState()
-        ) : (
+        {hasAnyInsights(insights) ? (
           <>
             {insights.topFindings.length > 0 && (
               <View style={styles.section}>
@@ -282,135 +354,269 @@ export default function InsightsScreen() {
                 {insights.doseResponses.slice(0, 3).map(dose => renderDoseResponse(dose))}
               </View>
             )}
+
+            {insights.supplementSummaries.length > 0 && (
+              <View style={styles.section}>
+                <ThemedText style={styles.sectionTitle}>Supplement Activity</ThemedText>
+                {insights.supplementSummaries.map(item => renderSupplementSummaryCard(item))}
+              </View>
+            )}
+
+            {insights.testSummaries.length > 0 && (
+              <View style={styles.section}>
+                <ThemedText style={styles.sectionTitle}>Test Results</ThemedText>
+                {insights.testSummaries.map(item => renderTestSummaryCard(item))}
+              </View>
+            )}
           </>
+        ) : hasAnyData(insights) ? (
+          <>
+            {insights.supplementSummaries.length > 0 && (
+              <View style={styles.section}>
+                <ThemedText style={styles.sectionTitle}>Supplement Activity</ThemedText>
+                {insights.supplementSummaries.map(item => renderSupplementSummaryCard(item))}
+              </View>
+            )}
+
+            {insights.testSummaries.length > 0 && (
+              <View style={styles.section}>
+                <ThemedText style={styles.sectionTitle}>Test Results</ThemedText>
+                {insights.testSummaries.map(item => renderTestSummaryCard(item))}
+              </View>
+            )}
+          </>
+        ) : (
+          renderEmptyState()
         )}
       </>
     );
   };
 
   const renderBySupplementView = () => {
-    if (!insights || !insights.dataQuality.sufficientData) {
-      return renderEmptyState();
-    }
+    if (!insights) return null;
 
     const supplementIds = Array.from(insights.bySupplementCorrelations.keys());
-
-    if (supplementIds.length === 0) {
-      return (
-        <View style={styles.noDataContainer}>
-          <ThemedText style={styles.noDataText}>No supplement correlations found yet</ThemedText>
-        </View>
-      );
-    }
+    const hasCorrelations = supplementIds.length > 0;
+    const hasSupplements = insights.supplementSummaries.length > 0;
 
     return (
       <>
-        {supplementIds.map(supplementId => {
-          const correlations = insights.bySupplementCorrelations.get(supplementId) || [];
-          if (correlations.length === 0) return null;
+        {renderDataQuality(insights.dataQuality)}
 
-          const isExpanded = expandedSupplements.has(supplementId);
-          const supplementName = correlations[0].supplementName;
-
-          return (
-            <View key={supplementId} style={styles.expandableSection}>
-              <TouchableOpacity 
-                style={[styles.expandableHeader, { borderColor: tintColor + '20' }]}
-                onPress={() => toggleSupplementExpanded(supplementId)}
-              >
-                <ThemedText style={styles.expandableTitle}>{supplementName}</ThemedText>
-                <View style={styles.expandableInfo}>
-                  <ThemedText style={styles.expandableCount}>{correlations.length} findings</ThemedText>
-                  <Ionicons 
-                    name={isExpanded ? 'chevron-up' : 'chevron-down'} 
-                    size={20} 
-                    color={tintColor} 
-                  />
-                </View>
-              </TouchableOpacity>
-              {isExpanded && (
-                <View style={styles.expandableContent}>
-                  {correlations.map(correlation => renderCorrelationCard(correlation, false, true))}
-                </View>
+        {hasSupplements ? (
+          <>
+            <View style={styles.section}>
+              <ThemedText style={styles.sectionTitle}>Supplement Activity</ThemedText>
+              {!hasCorrelations && (
+                <ThemedText style={styles.sectionDescription}>
+                  Take cognitive tests after supplements to see their effects
+                </ThemedText>
               )}
+              {insights.supplementSummaries.map(item => renderSupplementSummaryCard(item))}
             </View>
-          );
-        })}
+
+            {hasCorrelations && (
+              <>
+                <View style={styles.section}>
+                  <ThemedText style={styles.sectionTitle}>Supplement-Test Correlations</ThemedText>
+                </View>
+                {supplementIds.map(supplementId => {
+                  const correlations = insights.bySupplementCorrelations.get(supplementId) || [];
+                  if (correlations.length === 0) return null;
+
+                  const isExpanded = expandedSupplements.has(supplementId);
+                  const supplementName = correlations[0].supplementName;
+                  const bestCorrelation = correlations.reduce((best, c) =>
+                    Math.abs(c.percentChange) > Math.abs(best.percentChange) ? c : best, correlations[0]);
+
+                  return (
+                    <View key={supplementId} style={styles.expandableSection}>
+                      <TouchableOpacity
+                        style={[styles.expandableHeader, { borderColor: tintColor + '20' }]}
+                        onPress={() => toggleSupplementExpanded(supplementId)}
+                      >
+                        <View style={styles.expandableTitleContainer}>
+                          <ThemedText style={styles.expandableTitle}>{supplementName}</ThemedText>
+                          <ThemedText style={[styles.expandableBestChange, { color: getChangeColor(bestCorrelation.percentChange) }]}>
+                            Best: {formatPercentChange(bestCorrelation.percentChange)}
+                          </ThemedText>
+                        </View>
+                        <View style={styles.expandableInfo}>
+                          <ThemedText style={styles.expandableCount}>{correlations.length} findings</ThemedText>
+                          <Ionicons
+                            name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                            size={20}
+                            color={tintColor}
+                          />
+                        </View>
+                      </TouchableOpacity>
+                      {isExpanded && (
+                        <View style={styles.expandableContent}>
+                          {correlations.map(correlation => renderCorrelationCard(correlation, false, true))}
+                          {insights.doseResponses
+                            .filter(d => d.supplementId === supplementId)
+                            .map(dose => renderDoseResponse(dose))}
+                        </View>
+                      )}
+                    </View>
+                  );
+                })}
+              </>
+            )}
+          </>
+        ) : (
+          <View style={styles.noDataContainer}>
+            <Ionicons name="flask-outline" size={48} color="#8E8E93" />
+            <ThemedText style={styles.noDataText}>No supplement insights yet</ThemedText>
+            <ThemedText style={styles.noDataSubtext}>
+              Log supplements and take cognitive tests within a few hours to see how they affect your performance
+            </ThemedText>
+            <TouchableOpacity
+              style={[styles.emptyStateButton, { backgroundColor: tintColor, marginTop: 16 }]}
+              onPress={() => router.push('/supplements')}
+            >
+              <ThemedText style={styles.emptyStateButtonText}>Log Supplement</ThemedText>
+            </TouchableOpacity>
+          </View>
+        )}
       </>
     );
   };
 
   const renderByTestView = () => {
-    if (!insights || !insights.dataQuality.sufficientData) {
-      return renderEmptyState();
-    }
+    if (!insights) return null;
 
     const testTypes = Array.from(insights.byTestCorrelations.keys());
-
-    if (testTypes.length === 0) {
-      return (
-        <View style={styles.noDataContainer}>
-          <ThemedText style={styles.noDataText}>No test correlations found yet</ThemedText>
-        </View>
-      );
-    }
+    const hasCorrelations = testTypes.length > 0;
 
     return (
       <>
-        {testTypes.map(testType => {
-          const correlations = insights.byTestCorrelations.get(testType) || [];
-          if (correlations.length === 0) return null;
+        {renderDataQuality(insights.dataQuality)}
 
-          const isExpanded = expandedTests.has(testType);
+        {insights.testSummaries.length > 0 && (
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>Test Results</ThemedText>
+            {!hasCorrelations && (
+              <ThemedText style={styles.sectionDescription}>
+                Take supplements before tests to see their effects
+              </ThemedText>
+            )}
+            {insights.testSummaries.map(item => renderTestSummaryCard(item))}
+          </View>
+        )}
 
-          return (
-            <View key={testType} style={styles.expandableSection}>
-              <TouchableOpacity 
-                style={[styles.expandableHeader, { borderColor: tintColor + '20' }]}
-                onPress={() => toggleTestExpanded(testType)}
-              >
-                <ThemedText style={styles.expandableTitle}>{getTestTypeLabel(testType)}</ThemedText>
-                <View style={styles.expandableInfo}>
-                  <ThemedText style={styles.expandableCount}>{correlations.length} findings</ThemedText>
-                  <Ionicons 
-                    name={isExpanded ? 'chevron-up' : 'chevron-down'} 
-                    size={20} 
-                    color={tintColor} 
-                  />
-                </View>
-              </TouchableOpacity>
-              {isExpanded && (
-                <View style={styles.expandableContent}>
-                  {correlations.map(correlation => renderCorrelationCard(correlation, true, false))}
-                </View>
-              )}
-            </View>
-          );
-        })}
+        {!hasCorrelations && insights.testSummaries.length === 0 ? (
+          <View style={styles.noDataContainer}>
+            <Ionicons name="bar-chart-outline" size={48} color="#8E8E93" />
+            <ThemedText style={styles.noDataText}>No test insights yet</ThemedText>
+            <ThemedText style={styles.noDataSubtext}>
+              Complete cognitive tests after taking supplements to see how they correlate
+            </ThemedText>
+            <TouchableOpacity
+              style={[styles.emptyStateButton, { backgroundColor: tintColor, marginTop: 16 }]}
+              onPress={() => router.push('/cognitive-tests')}
+            >
+              <ThemedText style={styles.emptyStateButtonText}>Take Test</ThemedText>
+            </TouchableOpacity>
+          </View>
+        ) : hasCorrelations && (
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>Test-Supplement Correlations</ThemedText>
+          </View>
+        )}
+
+        {hasCorrelations && (
+          testTypes.map(testType => {
+            const correlations = insights.byTestCorrelations.get(testType) || [];
+            if (correlations.length === 0) return null;
+
+            const isExpanded = expandedTests.has(testType);
+            const baseline = insights.baselines.find(b => b.testType === testType);
+            const bestCorrelation = correlations.reduce((best, c) =>
+              Math.abs(c.percentChange) > Math.abs(best.percentChange) ? c : best, correlations[0]);
+
+            return (
+              <View key={testType} style={styles.expandableSection}>
+                <TouchableOpacity
+                  style={[styles.expandableHeader, { borderColor: tintColor + '20' }]}
+                  onPress={() => toggleTestExpanded(testType)}
+                >
+                  <View style={styles.expandableTitleContainer}>
+                    <ThemedText style={styles.expandableTitle}>{getTestTypeLabel(testType)}</ThemedText>
+                    {baseline && (
+                      <ThemedText style={styles.expandableBaseline}>
+                        Baseline: {baseline.baselineScore.toFixed(1)} (n={baseline.sampleSize})
+                      </ThemedText>
+                    )}
+                  </View>
+                  <View style={styles.expandableInfo}>
+                    <ThemedText style={[styles.expandableBestChange, { color: getChangeColor(bestCorrelation.percentChange) }]}>
+                      {formatPercentChange(bestCorrelation.percentChange)}
+                    </ThemedText>
+                    <ThemedText style={styles.expandableCount}>{correlations.length} findings</ThemedText>
+                    <Ionicons
+                      name={isExpanded ? 'chevron-up' : 'chevron-down'}
+                      size={20}
+                      color={tintColor}
+                    />
+                  </View>
+                </TouchableOpacity>
+                {isExpanded && (
+                  <View style={styles.expandableContent}>
+                    {correlations.map(correlation => renderCorrelationCard(correlation, true, false))}
+                  </View>
+                )}
+              </View>
+            );
+          })
+        )}
       </>
     );
   };
 
   const renderStacksView = () => {
-    if (!insights || !insights.dataQuality.sufficientData) {
-      return renderEmptyState();
-    }
+    if (!insights) return null;
 
-    if (insights.stackInsights.length === 0) {
-      return (
-        <View style={styles.noDataContainer}>
-          <Ionicons name="layers-outline" size={48} color="#8E8E93" />
-          <ThemedText style={styles.noDataText}>No stack patterns detected yet</ThemedText>
-          <ThemedText style={styles.noDataSubtext}>
-            Take supplements together more frequently to see combination effects
-          </ThemedText>
-        </View>
-      );
-    }
+    const hasStacks = insights.stackInsights.length > 0;
+    const hasSupplements = insights.supplementSummaries.length > 0;
 
     return (
       <>
-        {insights.stackInsights.map(stack => renderStackCard(stack))}
+        {renderDataQuality(insights.dataQuality)}
+
+        {hasStacks ? (
+          <>
+            <View style={styles.section}>
+              <ThemedText style={styles.sectionTitle}>Stack Analysis</ThemedText>
+              <ThemedText style={styles.sectionDescription}>
+                How supplement combinations compare to individual effects
+              </ThemedText>
+            </View>
+            {insights.stackInsights.map(stack => renderStackCard(stack))}
+          </>
+        ) : hasSupplements ? (
+          <View style={styles.section}>
+            <ThemedText style={styles.sectionTitle}>Your Supplements</ThemedText>
+            <ThemedText style={styles.sectionDescription}>
+              Take multiple supplements within 2 hours and complete cognitive tests to see combination effects
+            </ThemedText>
+            {insights.supplementSummaries.map(item => renderSupplementSummaryCard(item))}
+          </View>
+        ) : (
+          <View style={styles.noDataContainer}>
+            <Ionicons name="layers-outline" size={48} color="#8E8E93" />
+            <ThemedText style={styles.noDataText}>No stack patterns detected yet</ThemedText>
+            <ThemedText style={styles.noDataSubtext}>
+              Take multiple supplements within 2 hours and then complete cognitive tests to see combination effects
+            </ThemedText>
+            <TouchableOpacity
+              style={[styles.emptyStateButton, { backgroundColor: tintColor, marginTop: 16 }]}
+              onPress={() => router.push('/supplements')}
+            >
+              <ThemedText style={styles.emptyStateButtonText}>Log Supplements</ThemedText>
+            </TouchableOpacity>
+          </View>
+        )}
       </>
     );
   };
@@ -531,10 +737,12 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   tab: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
+    paddingVertical: 14,
+    paddingHorizontal: 20,
     borderRadius: 20,
     backgroundColor: 'rgba(128, 128, 128, 0.1)',
+    minHeight: 48,
+    justifyContent: 'center' as const,
   },
   tabText: {
     fontSize: 14,
@@ -833,6 +1041,34 @@ const styles = StyleSheet.create({
   },
   expandableContent: {
     marginTop: 8,
+  },
+  expandableTitleContainer: {
+    flex: 1,
+    marginRight: 8,
+  },
+  expandableBestChange: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  expandableBaseline: {
+    fontSize: 12,
+    opacity: 0.6,
+    marginTop: 2,
+  },
+  preliminaryBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+    marginBottom: 8,
+    alignSelf: 'flex-start',
+  },
+  preliminaryText: {
+    fontSize: 11,
+    color: '#FF9500',
+    fontWeight: '500',
   },
   noDataContainer: {
     alignItems: 'center',

@@ -108,19 +108,23 @@ export default function ExportScreen() {
       const allData = await exportAllData(options);
       const timestamp = new Date().toISOString().slice(0, 19).replace(/:/g, '-');
       
-      // Create a combined export with multiple files or a summary
       if (selectedTables.size === 1) {
         const tableKey = Array.from(selectedTables)[0];
         const filename = `neurosync_${tableKey}_${timestamp}.csv`;
         await writeAndShareFile(filename, allData[tableKey]);
       } else {
-        // For multiple tables, create a zip-like summary or individual files
-        // For now, let's create individual files
+        // Combine all tables into a single CSV with section headers
+        const sections: string[] = [];
         for (const tableKey of selectedTables) {
-          const filename = `neurosync_${tableKey}_${timestamp}.csv`;
-          await writeAndShareFile(filename, allData[tableKey]);
+          if (allData[tableKey]) {
+            sections.push(`# Table: ${tableKey}`);
+            sections.push(allData[tableKey]);
+            sections.push('');
+          }
         }
-        Alert.alert('Export Complete', `Exported ${selectedTables.size} tables successfully.`);
+        const combinedCsv = sections.join('\n');
+        const filename = `neurosync_export_${timestamp}.csv`;
+        await writeAndShareFile(filename, combinedCsv);
       }
       
     } catch (error) {
@@ -236,29 +240,25 @@ export default function ExportScreen() {
           ))}
         </ThemedView>
 
-        {/* Export Actions */}
-        <ThemedView style={styles.section}>
-          <TouchableOpacity
-            style={[
-              styles.exportButton,
-              { backgroundColor: tintColor },
-              (isExporting || selectedTables.size === 0) && styles.disabledButton
-            ]}
-            onPress={exportSelectedTables}
-            disabled={isExporting || selectedTables.size === 0}
-          >
-            <Ionicons name="download-outline" size={24} color={backgroundColor} />
-            <ThemedText style={[styles.exportButtonText, { color: backgroundColor }]}>
-              {isExporting ? 'Exporting...' : `Export Selected (${selectedTables.size})`}
-            </ThemedText>
-          </TouchableOpacity>
-
-          <ThemedText style={styles.exportNote}>
-            CSV files will be saved and shared using your device&apos;s sharing options. 
-            Timestamps are included in both Unix format and human-readable format.
-          </ThemedText>
-        </ThemedView>
       </ScrollView>
+
+      {/* Export button fixed at bottom, always visible */}
+      <View style={styles.footerContainer}>
+        <TouchableOpacity
+          style={[
+            styles.exportButton,
+            { backgroundColor: tintColor },
+            (isExporting || selectedTables.size === 0) && styles.disabledButton
+          ]}
+          onPress={exportSelectedTables}
+          disabled={isExporting || selectedTables.size === 0}
+        >
+          <Ionicons name="download-outline" size={24} color={backgroundColor} />
+          <ThemedText style={[styles.exportButtonText, { color: backgroundColor }]}>
+            {isExporting ? 'Exporting...' : `Export Selected (${selectedTables.size})`}
+          </ThemedText>
+        </TouchableOpacity>
+      </View>
 
       {/* Date Pickers */}
       {showStartDatePicker && (
@@ -410,6 +410,10 @@ const styles = StyleSheet.create({
     fontSize: 12,
     opacity: 0.6,
   },
+  footerContainer: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
   exportButton: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -417,7 +421,7 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     paddingHorizontal: 24,
     borderRadius: 12,
-    marginBottom: 15,
+    minHeight: 56,
     gap: 10,
   },
   disabledButton: {
@@ -426,11 +430,5 @@ const styles = StyleSheet.create({
   exportButtonText: {
     fontSize: 18,
     fontWeight: '600',
-  },
-  exportNote: {
-    fontSize: 12,
-    opacity: 0.6,
-    textAlign: 'center',
-    lineHeight: 18,
   },
 });

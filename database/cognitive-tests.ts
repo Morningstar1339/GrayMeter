@@ -174,35 +174,73 @@ export const getCognitiveTestResults = async (
   limit?: number
 ): Promise<CognitiveTestResult[]> => {
   return await withDatabase(
-    async () => {
-      let results = await asyncStorageGet('cognitive_test_results');
-      
+    async (db) => {
+      // Read from SQLite first, then merge with AsyncStorage data
+      let query = 'SELECT * FROM cognitive_test_results';
+      const params: any[] = [];
+
       if (testType) {
-        results = results.filter((result: any) => result.test_type === testType);
+        query += ' WHERE test_type = ?';
+        params.push(testType);
       }
-      
-      results.sort((a: any, b: any) => b.timestamp - a.timestamp);
-      
+
+      query += ' ORDER BY timestamp DESC';
+
       if (limit) {
-        results = results.slice(0, limit);
+        query += ' LIMIT ?';
+        params.push(limit);
       }
-      
-      return results.map((row: any) => ({
+
+      let sqliteResults: any[] = [];
+      try {
+        sqliteResults = await db.getAllAsync(query, params);
+      } catch (e) {
+        // Table might not exist yet
+      }
+
+      // Also check AsyncStorage for any results saved there
+      let asyncResults = await asyncStorageGet('cognitive_test_results');
+      if (testType) {
+        asyncResults = asyncResults.filter((result: any) => result.test_type === testType);
+      }
+      asyncResults.sort((a: any, b: any) => b.timestamp - a.timestamp);
+      if (limit) {
+        asyncResults = asyncResults.slice(0, limit);
+      }
+
+      // Merge: use SQLite results as base, add any AsyncStorage results not already present
+      const sqliteIds = new Set(sqliteResults.map((r: any) => r.id));
+      const merged = [...sqliteResults];
+      for (const asyncResult of asyncResults) {
+        if (!sqliteIds.has(asyncResult.id)) {
+          merged.push(asyncResult);
+        }
+      }
+
+      // Sort merged results
+      merged.sort((a: any, b: any) => b.timestamp - a.timestamp);
+      const finalResults = limit ? merged.slice(0, limit) : merged;
+
+      return finalResults.map((row: any) => ({
         ...row,
         raw_data: typeof row.raw_data === 'string' ? JSON.parse(row.raw_data) : row.raw_data
       })) as CognitiveTestResult[];
     },
     'getCognitiveTestResults',
     async () => {
-      // Fallback mode
-      let results = getFallbackData('cognitive_test_results');
-      
+      // Fallback mode - try AsyncStorage then in-memory fallback
+      let results = await asyncStorageGet('cognitive_test_results');
+
+      if (results.length === 0) {
+        results = getFallbackData('cognitive_test_results');
+      }
+
       if (testType) {
         results = results.filter((result: any) => result.test_type === testType);
       }
-      
+
       results.sort((a: any, b: any) => b.timestamp - a.timestamp);
-      
+
       if (limit) {
         results = results.slice(0, limit);
       }
