@@ -2,6 +2,8 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { StyleSheet, ScrollView, TouchableOpacity, View, ActivityIndicator, RefreshControl } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
+import { EffectChart } from '@/components/effect-chart';
+import { UserSupplementCurves } from '@/components/user-supplement-curves';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useRouter } from 'expo-router';
@@ -14,13 +16,16 @@ import {
   DoseResponseResult,
   DataQuality,
   TestType,
+  SupplementEffectAnalysis,
+  CohensD,
   formatPercentChange,
   formatConfidence,
   getTimingWindowLabel,
   getTestTypeLabel,
+  analyzeSupplementEffects,
 } from '@/database/correlation-analysis';
 
-type ViewMode = 'summary' | 'by-supplement' | 'by-test' | 'stacks';
+type ViewMode = 'summary' | 'by-supplement' | 'by-test' | 'stacks' | 'profiles';
 
 export default function InsightsScreen() {
   useHierarchicalBack('insights');
@@ -33,6 +38,10 @@ export default function InsightsScreen() {
   const [viewMode, setViewMode] = useState<ViewMode>('summary');
   const [expandedSupplements, setExpandedSupplements] = useState<Set<number>>(new Set());
   const [expandedTests, setExpandedTests] = useState<Set<TestType>>(new Set());
+  const [chartExpandedSupplements, setChartExpandedSupplements] = useState<Set<number>>(new Set());
+  const [selectedTestTypes, setSelectedTestTypes] = useState<Map<number, TestType>>(new Map());
+  const [chartData, setChartData] = useState<Map<string, SupplementEffectAnalysis>>(new Map());
+  const [chartLoading, setChartLoading] = useState<Set<string>>(new Set());
 
   const loadInsights = useCallback(async () => {
     try {
@@ -77,6 +86,65 @@ export default function InsightsScreen() {
       newExpanded.add(testType);
     }
     setExpandedTests(newExpanded);
+  };
+
+  const toggleChartExpanded = async (supplementId: number, availableTestTypes: TestType[]) => {
+    const newExpanded = new Set(chartExpandedSupplements);
+    if (newExpanded.has(supplementId)) {
+      newExpanded.delete(supplementId);
+      setChartExpandedSupplements(newExpanded);
+    } else {
+      newExpanded.add(supplementId);
+      setChartExpandedSupplements(newExpanded);
+      
+      const currentTestType = selectedTestTypes.get(supplementId) || availableTestTypes[0];
+      if (!selectedTestTypes.has(supplementId)) {
+        setSelectedTestTypes(new Map(selectedTestTypes).set(supplementId, currentTestType));
+      }
+      
+      await loadChartData(supplementId, currentTestType);
+    }
+  };
+
+  const loadChartData = async (supplementId: number, testType: TestType) => {
+    const cacheKey = `${supplementId}-${testType}`;
+    
+    if (chartData.has(cacheKey)) return;
+    
+    const newLoading = new Set(chartLoading);
+    newLoading.add(cacheKey);
+    setChartLoading(newLoading);
+    
+    try {
+      const thirtyDaysAgo = Math.floor(Date.now() / 1000) - (30 * 24 * 60 * 60);
+      const now = Math.floor(Date.now() / 1000);
+      
+      const analysis = await analyzeSupplementEffects(supplementId, testType, thirtyDaysAgo, now);
+      
+      if (analysis) {
+        setChartData(new Map(chartData).set(cacheKey, analysis));
+      }
+    } catch (error) {
+      console.error('Failed to load chart data:', error);
+    } finally {
+      const updatedLoading = new Set(chartLoading);
+      updatedLoading.delete(cacheKey);
+      setChartLoading(updatedLoading);
+    }
+  };
+
+  const handleTestTypeChange = async (supplementId: number, testType: TestType) => {
+    setSelectedTestTypes(new Map(selectedTestTypes).set(supplementId, testType));
+    await loadChartData(supplementId, testType);
+  };
+
+  const formatEffectSize = (cohensD: CohensD): string => {
+    const sign = cohensD.d >= 0 ? '+' : '';
+    return `d = ${sign}${cohensD.d.toFixed(2)} (${cohensD.interpretation})`;
+  };
+
+  const formatCI = (cohensD: CohensD): string => {
+    return `95% CI: [${cohensD.ci95[0].toFixed(2)}, ${cohensD.ci95[1].toFixed(2)}]`;
   };
 
   const getChangeColor = (percentChange: number): string => {
@@ -221,29 +289,189 @@ export default function InsightsScreen() {
     </View>
   );
 
-  const renderEmptyState = () => (
-    <View style={styles.emptyState}>
-      <Ionicons name="analytics-outline" size={64} color="#8E8E93" />
-      <ThemedText style={styles.emptyStateTitle}>Not Enough Data Yet</ThemedText>
-      <ThemedText style={styles.emptyStateText}>
-        Log more supplements and complete more cognitive tests to see patterns. We recommend at least 2 weeks of consistent tracking.
-      </ThemedText>
-      <View style={styles.emptyStateActions}>
-        <TouchableOpacity 
-          style={[styles.emptyStateButton, { backgroundColor: tintColor }]}
-          onPress={() => router.push('/supplements')}
-        >
-          <ThemedText style={styles.emptyStateButtonText}>Log Supplement</ThemedText>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          style={[styles.emptyStateButton, { backgroundColor: tintColor }]}
-          onPress={() => router.push('/cognitive-tests')}
-        >
-          <ThemedText style={styles.emptyStateButtonText}>Take Test</ThemedText>
-        </TouchableOpacity>
+  const renderEmptyState = () => {
+    const dq = insights?.dataQuality;
+    
+    return (
+      <View style={styles.emptyState}>
+        <Ionicons name="analytics-outline" size={64} color="#8E8E93" />
+        <ThemedText style={styles.emptyStateTitle}>Not Enough Data Yet</ThemedText>
+        <ThemedText style={styles.emptyStateText}>
+          Log supplements and complete cognitive tests to see patterns. Here's what's needed:
+        </ThemedText>
+        {dq && (
+          <View style={{ marginVertical: 12, alignItems: 'flex-start', width: '100%', paddingHorizontal: 20 }}>
+            <ThemedText style={[styles.emptyStateText, { fontSize: 13, marginBottom: 4 }]}>
+              {dq.totalSupplementLogs >= 10 ? '✅' : '⬜'} Supplement logs: {dq.totalSupplementLogs}/10
+            </ThemedText>
+            <ThemedText style={[styles.emptyStateText, { fontSize: 13, marginBottom: 4 }]}>
+              {dq.totalTestResults >= 10 ? '✅' : '⬜'} Cognitive tests: {dq.totalTestResults}/10
+            </ThemedText>
+            <ThemedText style={[styles.emptyStateText, { fontSize: 13, marginBottom: 4 }]}>
+              {dq.trackingDays >= 7 ? '✅' : '⬜'} Tracking days: {dq.trackingDays}/7
+            </ThemedText>
+          </View>
+        )}
+        <View style={styles.emptyStateActions}>
+          <TouchableOpacity
+            style={[styles.emptyStateButton, { backgroundColor: tintColor }]}
+            onPress={() => router.push('/supplements')}
+            accessibilityRole="button"
+            accessibilityLabel="Log Supplement"
+            testID="btn-insights-log-supplement"
+          >
+            <ThemedText style={styles.emptyStateButtonText}>Log Supplement</ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.emptyStateButton, { backgroundColor: tintColor }]}
+            onPress={() => router.push('/cognitive-tests')}
+            accessibilityRole="button"
+            accessibilityLabel="Take Test"
+            testID="btn-insights-take-test"
+          >
+            <ThemedText style={styles.emptyStateButtonText}>Take Test</ThemedText>
+          </TouchableOpacity>
+        </View>
       </View>
-    </View>
-  );
+    );
+  };
+
+  const renderChartSection = (supplementId: number, supplementName: string, availableTestTypes: TestType[]) => {
+    const isChartExpanded = chartExpandedSupplements.has(supplementId);
+    const currentTestType = selectedTestTypes.get(supplementId) || availableTestTypes[0];
+    const cacheKey = `${supplementId}-${currentTestType}`;
+    const isLoading = chartLoading.has(cacheKey);
+    const analysis = chartData.get(cacheKey);
+
+    return (
+      <View style={styles.chartSection}>
+        <TouchableOpacity
+          style={[styles.chartToggle, { borderColor: tintColor + '30' }]}
+          onPress={() => toggleChartExpanded(supplementId, availableTestTypes)}
+          accessibilityRole="button"
+          accessibilityLabel="Toggle effect analysis"
+          testID={`btn-insights-chart-toggle-${supplementId}`}
+        >
+          <View style={styles.chartToggleLeft}>
+            <Ionicons name="analytics" size={18} color={tintColor} />
+            <ThemedText style={styles.chartToggleText}>Effect Analysis</ThemedText>
+          </View>
+          <Ionicons
+            name={isChartExpanded ? 'chevron-up' : 'chevron-down'}
+            size={20}
+            color={tintColor}
+          />
+        </TouchableOpacity>
+
+        {isChartExpanded && (
+          <View style={[styles.chartContainer, { borderColor: tintColor + '20' }]}>
+            <View style={styles.testTypeSelector}>
+              <ThemedText style={styles.testTypeSelectorLabel}>Test Type:</ThemedText>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.testTypePills}>
+                {availableTestTypes.map(testType => (
+                  <TouchableOpacity
+                    key={testType}
+                    style={[
+                      styles.testTypePill,
+                      currentTestType === testType && { backgroundColor: tintColor }
+                    ]}
+                    onPress={() => handleTestTypeChange(supplementId, testType)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Select ${getTestTypeLabel(testType)} test type`}
+                    testID={`btn-insights-test-type-${supplementId}-${testType}`}
+                  >
+                    <ThemedText
+                      style={[
+                        styles.testTypePillText,
+                        currentTestType === testType && { color: 'white' }
+                      ]}
+                    >
+                      {getTestTypeLabel(testType)}
+                    </ThemedText>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+            </View>
+
+            {isLoading ? (
+              <View style={styles.chartLoading}>
+                <ActivityIndicator size="small" color={tintColor} />
+                <ThemedText style={styles.chartLoadingText}>Loading analysis...</ThemedText>
+              </View>
+            ) : analysis ? (
+              <>
+                <EffectChart
+                  testResults={analysis.testResults}
+                  phases={analysis.phases}
+                  supplementName={supplementName}
+                  testType={getTestTypeLabel(analysis.testType)}
+                  baselineMean={analysis.baselineScores.length > 0 
+                    ? analysis.baselineScores.reduce((a, b) => a + b, 0) / analysis.baselineScores.length 
+                    : undefined}
+                />
+
+                <View style={styles.effectStats}>
+                  {analysis.cohensD ? (
+                    <>
+                      <View style={styles.effectStatRow}>
+                        <ThemedText style={styles.effectStatLabel}>Effect Size:</ThemedText>
+                        <ThemedText style={[
+                          styles.effectStatValue,
+                          { color: getChangeColor(analysis.cohensD.d * 20) }
+                        ]}>
+                          {formatEffectSize(analysis.cohensD)}
+                        </ThemedText>
+                      </View>
+                      <View style={styles.effectStatRow}>
+                        <ThemedText style={styles.effectStatLabel}>Confidence:</ThemedText>
+                        <ThemedText style={styles.effectStatValue}>
+                          {formatCI(analysis.cohensD)}
+                        </ThemedText>
+                      </View>
+                      <View style={styles.effectStatRow}>
+                        <ThemedText style={styles.effectStatLabel}>Samples:</ThemedText>
+                        <ThemedText style={styles.effectStatValue}>
+                          {analysis.cohensD.treatmentN} on days, {analysis.cohensD.baselineN} off days
+                        </ThemedText>
+                      </View>
+                      <View style={styles.effectStatRow}>
+                        <ThemedText style={styles.effectStatLabel}>Method:</ThemedText>
+                        <ThemedText style={[
+                          styles.effectStatValue,
+                          analysis.analysisMethod === 'pk_informed' && { color: tintColor }
+                        ]}>
+                          {analysis.analysisMethod === 'pk_informed' ? '📊 PK-informed' : 'Binary (on/off)'}
+                        </ThemedText>
+                      </View>
+                      {analysis.pkAnalysis && (
+                        <View style={styles.effectStatRow}>
+                          <ThemedText style={styles.effectStatLabel}>PK Correlation:</ThemedText>
+                          <ThemedText style={[
+                            styles.effectStatValue,
+                            { color: getChangeColor(analysis.pkAnalysis.correlation * 50) }
+                          ]}>
+                            r={analysis.pkAnalysis.correlation.toFixed(3)} (p={analysis.pkAnalysis.pValue.toFixed(3)})
+                          </ThemedText>
+                        </View>
+                      )}
+                    </>
+                  ) : (
+                    <ThemedText style={styles.insufficientData}>
+                      Insufficient data for effect size calculation (need 2+ samples in each condition)
+                    </ThemedText>
+                  )}
+                </View>
+              </>
+            ) : (
+              <View style={styles.chartLoading}>
+                <ThemedText style={styles.chartLoadingText}>No data available for this test type</ThemedText>
+              </View>
+            )}
+          </View>
+        )}
+      </View>
+    );
+  };
 
   const renderSummaryView = () => {
     if (!insights) return null;
@@ -312,11 +540,16 @@ export default function InsightsScreen() {
           const isExpanded = expandedSupplements.has(supplementId);
           const supplementName = correlations[0].supplementName;
 
+          const availableTestTypes = [...new Set(correlations.map(c => c.testType))];
+
           return (
             <View key={supplementId} style={styles.expandableSection}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.expandableHeader, { borderColor: tintColor + '20' }]}
                 onPress={() => toggleSupplementExpanded(supplementId)}
+                accessibilityRole="button"
+                accessibilityLabel={`Toggle ${supplementName} details`}
+                testID={`btn-insights-expand-supplement-${supplementId}`}
               >
                 <ThemedText style={styles.expandableTitle}>{supplementName}</ThemedText>
                 <View style={styles.expandableInfo}>
@@ -330,6 +563,7 @@ export default function InsightsScreen() {
               </TouchableOpacity>
               {isExpanded && (
                 <View style={styles.expandableContent}>
+                  {renderChartSection(supplementId, supplementName, availableTestTypes)}
                   {correlations.map(correlation => renderCorrelationCard(correlation, false, true))}
                 </View>
               )}
@@ -365,9 +599,12 @@ export default function InsightsScreen() {
 
           return (
             <View key={testType} style={styles.expandableSection}>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[styles.expandableHeader, { borderColor: tintColor + '20' }]}
                 onPress={() => toggleTestExpanded(testType)}
+                accessibilityRole="button"
+                accessibilityLabel={`Toggle ${getTestTypeLabel(testType)} details`}
+                testID={`btn-insights-expand-test-${testType}`}
               >
                 <ThemedText style={styles.expandableTitle}>{getTestTypeLabel(testType)}</ThemedText>
                 <View style={styles.expandableInfo}>
@@ -415,6 +652,17 @@ export default function InsightsScreen() {
     );
   };
 
+  const renderProfilesView = () => {
+    return (
+      <UserSupplementCurves
+        onSupplementPress={(supplement) => {
+          // Navigate to specific supplement analysis or do nothing for now
+          console.log('Selected supplement for analysis:', supplement.name);
+        }}
+      />
+    );
+  };
+
   if (loading) {
     return (
       <ThemedView style={styles.container} safeArea>
@@ -429,40 +677,69 @@ export default function InsightsScreen() {
   return (
     <ThemedView style={styles.container} safeArea>
       <ThemedView style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go home" testID="btn-insights-home">
           <Ionicons name="home-outline" size={24} color={tintColor} />
         </TouchableOpacity>
         <ThemedText type="title" style={styles.title}>Insights</ThemedText>
-        <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>
-          <Ionicons name="refresh" size={24} color={tintColor} />
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity onPress={() => router.push('/priors')} style={styles.pkAnalysisButton} accessibilityRole="button" accessibilityLabel="PK Analysis" testID="btn-insights-pk-analysis">
+            <Ionicons name="flask-outline" size={18} color={tintColor} />
+            <ThemedText style={[styles.pkAnalysisButtonText, { color: tintColor }]}>
+              PK Analysis
+            </ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={onRefresh} style={styles.headerButton} accessibilityRole="button" accessibilityLabel="Refresh" testID="btn-insights-refresh">
+            <Ionicons name="refresh" size={22} color={tintColor} />
+          </TouchableOpacity>
+        </View>
       </ThemedView>
 
       <View style={styles.tabContainer}>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabScroll}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.tab, viewMode === 'summary' && { backgroundColor: tintColor }]}
             onPress={() => setViewMode('summary')}
+            accessibilityRole="button"
+            accessibilityLabel="Summary tab"
+            testID="btn-insights-tab-summary"
           >
             <ThemedText style={[styles.tabText, viewMode === 'summary' && { color: 'white' }]}>Summary</ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.tab, viewMode === 'by-supplement' && { backgroundColor: tintColor }]}
             onPress={() => setViewMode('by-supplement')}
+            accessibilityRole="button"
+            accessibilityLabel="By Supplement tab"
+            testID="btn-insights-tab-by-supplement"
           >
             <ThemedText style={[styles.tabText, viewMode === 'by-supplement' && { color: 'white' }]}>By Supplement</ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.tab, viewMode === 'by-test' && { backgroundColor: tintColor }]}
             onPress={() => setViewMode('by-test')}
+            accessibilityRole="button"
+            accessibilityLabel="By Test tab"
+            testID="btn-insights-tab-by-test"
           >
             <ThemedText style={[styles.tabText, viewMode === 'by-test' && { color: 'white' }]}>By Test</ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={[styles.tab, viewMode === 'stacks' && { backgroundColor: tintColor }]}
             onPress={() => setViewMode('stacks')}
+            accessibilityRole="button"
+            accessibilityLabel="Stacks tab"
+            testID="btn-insights-tab-stacks"
           >
             <ThemedText style={[styles.tabText, viewMode === 'stacks' && { color: 'white' }]}>Stacks</ThemedText>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.tab, viewMode === 'profiles' && { backgroundColor: tintColor }]}
+            onPress={() => setViewMode('profiles')}
+            accessibilityRole="button"
+            accessibilityLabel="Profiles tab"
+            testID="btn-insights-tab-profiles"
+          >
+            <ThemedText style={[styles.tabText, viewMode === 'profiles' && { color: 'white' }]}>Profiles</ThemedText>
           </TouchableOpacity>
         </ScrollView>
       </View>
@@ -478,6 +755,7 @@ export default function InsightsScreen() {
         {viewMode === 'by-supplement' && renderBySupplementView()}
         {viewMode === 'by-test' && renderByTestView()}
         {viewMode === 'stacks' && renderStacksView()}
+        {viewMode === 'profiles' && renderProfilesView()}
 
         <View style={styles.disclaimer}>
           <Ionicons name="information-circle-outline" size={16} color="#8E8E93" />
@@ -505,6 +783,26 @@ const styles = StyleSheet.create({
   },
   backButton: {
     padding: 8,
+  },
+  headerButtons: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  headerButton: {
+    padding: 8,
+  },
+  pkAnalysisButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: 'rgba(128,128,128,0.1)',
+  },
+  pkAnalysisButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
   },
   refreshButton: {
     padding: 8,
@@ -865,5 +1163,92 @@ const styles = StyleSheet.create({
     fontSize: 12,
     opacity: 0.6,
     lineHeight: 18,
+  },
+  chartSection: {
+    marginBottom: 16,
+  },
+  chartToggle: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+    backgroundColor: 'rgba(128, 128, 128, 0.05)',
+  },
+  chartToggleLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  chartToggleText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  chartContainer: {
+    marginTop: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+  },
+  testTypeSelector: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  testTypeSelectorLabel: {
+    fontSize: 13,
+    opacity: 0.7,
+    marginRight: 8,
+  },
+  testTypePills: {
+    flexDirection: 'row',
+  },
+  testTypePill: {
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: 'rgba(128, 128, 128, 0.1)',
+    marginRight: 6,
+  },
+  testTypePillText: {
+    fontSize: 12,
+    fontWeight: '500',
+  },
+  chartLoading: {
+    height: 180,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: 8,
+  },
+  chartLoadingText: {
+    fontSize: 13,
+    opacity: 0.6,
+  },
+  effectStats: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(128, 128, 128, 0.2)',
+  },
+  effectStatRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 6,
+  },
+  effectStatLabel: {
+    fontSize: 13,
+    opacity: 0.7,
+  },
+  effectStatValue: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  insufficientData: {
+    fontSize: 13,
+    opacity: 0.6,
+    fontStyle: 'italic',
+    textAlign: 'center',
   },
 });

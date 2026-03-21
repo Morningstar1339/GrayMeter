@@ -5,7 +5,7 @@ import { ThemedView } from '@/components/themed-view';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/use-theme-color';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { 
@@ -151,6 +151,9 @@ export default function ExportScreen() {
           style={styles.homeButton}
           onPress={handleHomePress}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Go home"
+          testID="btn-export-home"
         >
           <Ionicons name="home-outline" size={24} color={tintColor} />
         </TouchableOpacity>
@@ -167,9 +170,12 @@ export default function ExportScreen() {
           </ThemedText>
           
           <View style={styles.dateRow}>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.dateButton, { borderColor: tintColor }]}
               onPress={() => setShowStartDatePicker(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Select start date"
+              testID="btn-start-date"
             >
               <ThemedText style={styles.dateButtonText}>
                 {startDate ? formatDate(startDate) : 'Start Date'}
@@ -177,9 +183,12 @@ export default function ExportScreen() {
               <Ionicons name="calendar-outline" size={20} color={tintColor} />
             </TouchableOpacity>
             
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.dateButton, { borderColor: tintColor }]}
               onPress={() => setShowEndDatePicker(true)}
+              accessibilityRole="button"
+              accessibilityLabel="Select end date"
+              testID="btn-end-date"
             >
               <ThemedText style={styles.dateButtonText}>
                 {endDate ? formatDate(endDate) : 'End Date'}
@@ -189,7 +198,13 @@ export default function ExportScreen() {
           </View>
           
           {(startDate || endDate) && (
-            <TouchableOpacity style={styles.clearButton} onPress={clearDateRange}>
+            <TouchableOpacity
+              style={styles.clearButton}
+              onPress={clearDateRange}
+              accessibilityRole="button"
+              accessibilityLabel="Clear date range"
+              testID="btn-clear-date-range"
+            >
               <ThemedText style={[styles.clearButtonText, { color: tintColor }]}>{"Clear Date Range"}</ThemedText>
             </TouchableOpacity>
           )}
@@ -200,10 +215,20 @@ export default function ExportScreen() {
           <View style={styles.sectionHeader}>
             <ThemedText type="subtitle" style={styles.sectionTitle}>{"Tables to Export"}</ThemedText>
             <View style={styles.selectionButtons}>
-              <TouchableOpacity onPress={selectAllTables}>
+              <TouchableOpacity
+                onPress={selectAllTables}
+                accessibilityRole="button"
+                accessibilityLabel="Select all tables"
+                testID="btn-select-all-tables"
+              >
                 <ThemedText style={[styles.selectionButtonText, { color: tintColor }]}>{"All"}</ThemedText>
               </TouchableOpacity>
-              <TouchableOpacity onPress={selectNone}>
+              <TouchableOpacity
+                onPress={selectNone}
+                accessibilityRole="button"
+                accessibilityLabel="Deselect all tables"
+                testID="btn-select-none-tables"
+              >
                 <ThemedText style={[styles.selectionButtonText, { color: tintColor }]}>{"None"}</ThemedText>
               </TouchableOpacity>
             </View>
@@ -217,6 +242,9 @@ export default function ExportScreen() {
                 { borderColor: selectedTables.has(table.key) ? tintColor : '#8E8E93' }
               ]}
               onPress={() => toggleTable(table.key)}
+              accessibilityRole="checkbox"
+              accessibilityLabel={`${table.label}: ${table.description}`}
+              testID={`checkbox-table-${table.key}`}
             >
               <View style={styles.tableOptionContent}>
                 <View style={styles.tableInfo}>
@@ -246,6 +274,9 @@ export default function ExportScreen() {
             ]}
             onPress={exportSelectedTables}
             disabled={isExporting || selectedTables.size === 0}
+            accessibilityRole="button"
+            accessibilityLabel="Export selected tables"
+            testID="btn-export-data"
           >
             <Ionicons name="download-outline" size={24} color={backgroundColor} />
             <ThemedText style={[styles.exportButtonText, { color: backgroundColor }]}>
@@ -257,6 +288,20 @@ export default function ExportScreen() {
             CSV files will be saved and shared using your device&apos;s sharing options. 
             Timestamps are included in both Unix format and human-readable format.
           </ThemedText>
+
+          {/* Import Link */}
+          <TouchableOpacity
+            style={[styles.importLink, { borderColor: tintColor }]}
+            onPress={() => router.push('/data-import')}
+            accessibilityRole="button"
+            accessibilityLabel="Import data from CSV"
+            testID="btn-import-data"
+          >
+            <Ionicons name="cloud-upload-outline" size={24} color={tintColor} />
+            <ThemedText style={[styles.importLinkText, { color: tintColor }]}>
+              Import Data from CSV
+            </ThemedText>
+          </TouchableOpacity>
         </ThemedView>
       </ScrollView>
 
@@ -432,5 +477,20 @@ const styles = StyleSheet.create({
     opacity: 0.6,
     textAlign: 'center',
     lineHeight: 18,
+  },
+  importLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    paddingHorizontal: 20,
+    borderRadius: 12,
+    borderWidth: 2,
+    marginTop: 20,
+    gap: 10,
+  },
+  importLinkText: {
+    fontSize: 16,
+    fontWeight: '600',
   },
 });

@@ -114,14 +114,17 @@ export default function AddActivityScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
       <ThemedView style={styles.header}>
-        <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
+        <TouchableOpacity onPress={handleCancel} style={styles.cancelButton} accessibilityRole="button" accessibilityLabel="Cancel" testID="btn-add-activity-cancel">
           <ThemedText style={styles.cancelText}>Cancel</ThemedText>
         </TouchableOpacity>
         <ThemedText type="title" style={styles.title}>Add Activity</ThemedText>
-        <TouchableOpacity 
-          onPress={handleSave} 
+        <TouchableOpacity
+          onPress={handleSave}
           style={[styles.saveButton, { backgroundColor: tintColor }]}
           disabled={isSubmitting}
+          accessibilityRole="button"
+          accessibilityLabel="Save activity"
+          testID="btn-add-activity-save"
         >
           <ThemedText style={styles.saveText}>Save</ThemedText>
         </TouchableOpacity>
@@ -138,6 +141,8 @@ export default function AddActivityScreen() {
             placeholderTextColor="#8E8E93"
             autoCapitalize="words"
             maxLength={50}
+            accessibilityLabel="Activity name"
+            testID="input-activity-name"
           />
         </ThemedView>
 
@@ -152,6 +157,8 @@ export default function AddActivityScreen() {
               placeholderTextColor="#8E8E93"
               keyboardType="numeric"
               maxLength={10}
+              accessibilityLabel="Default value"
+              testID="input-activity-default-value"
             />
             <TextInput
               style={[styles.unitInput, { borderColor: tintColor + '30', color: textColor }]}
@@ -161,6 +168,8 @@ export default function AddActivityScreen() {
               placeholderTextColor="#8E8E93"
               autoCapitalize="none"
               maxLength={20}
+              accessibilityLabel="Activity unit"
+              testID="input-activity-unit"
             />
           </View>
         </ThemedView>
@@ -176,6 +185,9 @@ export default function AddActivityScreen() {
                   selectedIcon === icon && { backgroundColor: selectedColor }
                 ]}
                 onPress={() => setSelectedIcon(icon)}
+                accessibilityRole="button"
+                accessibilityLabel={`Select ${icon} icon`}
+                testID={`btn-activity-icon-${icon}`}
               >
                 <Ionicons 
                   name={icon as any} 
@@ -199,6 +211,9 @@ export default function AddActivityScreen() {
                   selectedColor === color && styles.selectedColorButton
                 ]}
                 onPress={() => setSelectedColor(color)}
+                accessibilityRole="button"
+                accessibilityLabel={`Select color ${color}`}
+                testID={`btn-activity-color-${color.replace('#','')}`}
               >
                 {selectedColor === color && (
                   <Ionicons name="checkmark" size={18} color={getContrastingTextColor(color)} />

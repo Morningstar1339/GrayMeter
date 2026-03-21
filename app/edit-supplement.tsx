@@ -2,7 +2,9 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, View, KeyboardAvoidingView, Platform } from 'react-native';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
-import { Supplement, Exclusion, DosageLimitParams, getSupplementExclusions, addExclusion, deleteExclusion } from '@/database/supplements';
+import { Supplement, Exclusion, DosageLimitParams, getSupplementExclusions, addExclusion, deleteExclusion, updateSupplementProfileId } from '@/database/supplements';
+import { getAllSubstanceProfiles, findSubstanceByName, SubstanceProfile, getCurveDescription, formatCategory } from '@/database/pk-curves';
+import { autoAssignProfile, getConfidenceIndicator, getFriendlyProfileName, GENERAL_SUPPLEMENT_PROFILE } from '@/database/default-profiles';
 import { Ionicons } from '@expo/vector-icons';
 import { useThemeColor } from '@/hooks/use-theme-color';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -10,18 +12,35 @@ import { openDatabase } from '@/database/database';
 import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 
 const AVAILABLE_ICONS = [
-  'medical', 'fitness', 'nutrition', 'leaf', 'water', 'rose',
-  'flower', 'diamond', 'heart', 'star', 'sunny', 'moon',
-  'flash', 'shield', 'rocket', 'trophy', 'gift', 'bulb',
-  'glasses', 'watch', 'camera', 'headset', 'game-controller', 'phone-portrait',
-  'flower-outline', 'medical-outline', 'ellipse', 'wine', 'bandage',
-  'cigarette', 'pipe', 'water-outline'
+  // Supplements & Medicine
+  'medical', 'medkit', 'bandage', 'fitness', 'nutrition', 'flask',
+  // Nature & Plants
+  'leaf', 'flower', 'rose', 'flower-outline', 'water', 'water-outline',
+  // Energy & Effects
+  'flash', 'sunny', 'moon', 'bulb', 'sparkles', 'thunderstorm',
+  // Body & Health
+  'heart', 'body', 'eye', 'brain', 'pulse', 'shield',
+  // Food & Drink
+  'cafe', 'wine', 'beer', 'pizza', 'fish',
+  // Wellness & Mood
+  'happy', 'star', 'diamond', 'ribbon', 'trophy',
+  // Misc
+  'rocket', 'flame', 'snow', 'rainy', 'nuclear', 'ellipse',
 ];
 
 const DEFAULT_COLORS = [
-  '#007AFF', '#FF3B30', '#FF9500', '#FFCC00', '#34C759', '#5AC8FA',
-  '#AF52DE', '#FF2D92', '#8E8E93', '#5856D6', '#FF6B6B', '#4ECDC4',
-  '#45B7D1', '#96CEB4', '#FFEAA7', '#DDA0DD', '#98D8C8', '#F7DC6F'
+  // Blues (calming, water-soluble)
+  '#007AFF', '#5AC8FA', '#45B7D1', '#5856D6',
+  // Greens (natural, herbal)
+  '#34C759', '#4ECDC4', '#96CEB4', '#2D8B56',
+  // Reds & Oranges (stimulants, energy)
+  '#FF3B30', '#FF9500', '#FF6B6B', '#E74C3C',
+  // Purples (nootropics, adaptogens)
+  '#AF52DE', '#DDA0DD', '#8E44AD', '#6C5CE7',
+  // Yellows & Golds (vitamins, minerals)
+  '#FFCC00', '#F7DC6F', '#FFEAA7', '#F39C12',
+  // Neutrals & Pinks
+  '#8E8E93', '#FF2D92', '#98D8C8', '#E17055',
 ];
 
 const getContrastingTextColor = (backgroundColor: string): string => {
@@ -55,14 +74,15 @@ export default function EditSupplementScreen() {
     default_dosage: Number(params.default_dosage),
     dosage_unit: params.dosage_unit as string,
     icon_id: params.icon_id as string,
-    color: (params.color as string) || '#007AFF',
+    color: (params.color as string) || '#00D4FF',
     schedule_enabled: params.schedule_enabled === 'true',
-    study_enabled: params.study_enabled === 'true'
+    study_enabled: params.study_enabled === 'true',
+    substance_profile_id: params.substance_profile_id as string || undefined
   };
 
   const [dosage, setDosage] = useState(originalSupplement.default_dosage.toString());
   const [selectedIcon, setSelectedIcon] = useState(originalSupplement.icon_id || 'medical');
-  const [selectedColor, setSelectedColor] = useState(originalSupplement.color || '#007AFF');
+  const [selectedColor, setSelectedColor] = useState(originalSupplement.color || '#00D4FF');
   const [isSubmitting, setIsSubmitting] = useState(false);
   
   // Exclusion states
@@ -70,89 +90,90 @@ export default function EditSupplementScreen() {
   const [showAddDosageLimit, setShowAddDosageLimit] = useState(false);
   const [newDosageLimitMaxStr, setNewDosageLimitMaxStr] = useState('');
   const [newDosageLimitHoursStr, setNewDosageLimitHoursStr] = useState('24');
+  
+  // PK Profile states
+  const [availableProfiles, setAvailableProfiles] = useState<SubstanceProfile[]>([]);
+  const [selectedProfileId, setSelectedProfileId] = useState<string | null>(originalSupplement.substance_profile_id || null);
+  const [autoAssignedProfile, setAutoAssignedProfile] = useState<SubstanceProfile | null>(null);
+  const [currentProfile, setCurrentProfile] = useState<SubstanceProfile | null>(null);
+  const [isAutoAssigned, setIsAutoAssigned] = useState(!originalSupplement.substance_profile_id);
+  const [showProfilePicker, setShowProfilePicker] = useState(false);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
 
   const scrollViewRef = useRef<ScrollView>(null);
 
-  const loadExclusions = useCallback(async () => {
+  useEffect(() => {
+    loadExclusions();
+    loadProfiles();
+  }, []);
+  
+  // Load current profile on mount
+  useEffect(() => {
+    const loadCurrentProfile = async () => {
+      if (originalSupplement.substance_profile_id) {
+        try {
+          const profiles = await getAllSubstanceProfiles();
+          const profile = profiles.find(p => p.id === originalSupplement.substance_profile_id) || 
+                         (originalSupplement.substance_profile_id === 'general_supplement' ? GENERAL_SUPPLEMENT_PROFILE : null);
+          if (profile) {
+            setCurrentProfile(profile);
+          }
+        } catch (error) {
+          console.error('Failed to load current profile:', error);
+        }
+      } else {
+        // Auto-assign profile for supplements without one
+        handleAutoAssignment();
+      }
+    };
+    
+    loadCurrentProfile();
+  }, []);
+
+  const loadExclusions = async () => {
     try {
-      const supplementExclusions = await getSupplementExclusions(supplementId);
-      setExclusions(supplementExclusions);
+      const result = await getSupplementExclusions(supplementId);
+      setExclusions(result);
     } catch (error) {
       console.error('Failed to load exclusions:', error);
     }
-  }, [supplementId]);
+  };
 
-  useEffect(() => {
-    loadExclusions();
-  }, [loadExclusions]);
-
-  const handleAddDosageLimit = async () => {
+  const loadProfiles = async () => {
     try {
-      const maxDosage = parseFloat(newDosageLimitMaxStr) || 0;
-      const hours = parseFloat(newDosageLimitHoursStr) || 1;
-      await addExclusion({
-        supplement_id: originalSupplement.id,
-        exclusion_type: 'dosage_limit',
-        parameters: JSON.stringify({ max_dosage: maxDosage, time_window_hours: hours })
-      });
-
-      setShowAddDosageLimit(false);
-      setNewDosageLimitMaxStr('');
-      setNewDosageLimitHoursStr('24');
-      loadExclusions();
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
-      }, 100);
+      const profiles = await getAllSubstanceProfiles();
+      setAvailableProfiles(profiles);
     } catch (error) {
-      console.error('Failed to add warning:', error);
-      Alert.alert('Error', 'Failed to add warning. Please try again.');
+      console.error('Failed to load substance profiles:', error);
     }
   };
-
-  const handleDeleteExclusion = async (exclusionId: number) => {
-    Alert.alert(
-      'Delete Warning',
-      'Are you sure you want to delete this warning?',
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            try {
-              await deleteExclusion(exclusionId);
-              loadExclusions();
-            } catch (error) {
-              console.error('Failed to delete warning:', error);
-              Alert.alert('Error', 'Failed to delete warning. Please try again.');
-            }
-          }
-        }
-      ]
-    );
-  };
-
-
-  const updateSupplement = async (updates: Partial<Supplement>) => {
-    const db = await openDatabase();
-    const setClause = Object.keys(updates)
-      .map(key => `${key} = ?`)
-      .join(', ');
-    const values = Object.values(updates);
-    values.push(originalSupplement.id);
+  
+  const handleAutoAssignment = async () => {
+    if (!originalSupplement.name.trim()) {
+      return;
+    }
     
-    await db.runAsync(
-      `UPDATE supplements SET ${setClause} WHERE id = ?`,
-      values
-    );
-  };
-
-  const deleteSupplement = async () => {
-    const db = await openDatabase();
-    // Delete supplement logs first (foreign key constraint)
-    await db.runAsync('DELETE FROM supplement_logs WHERE supplement_id = ?', [originalSupplement.id]);
-    // Delete the supplement
-    await db.runAsync('DELETE FROM supplements WHERE id = ?', [originalSupplement.id]);
+    setIsLoadingProfile(true);
+    try {
+      const assignedProfile = await autoAssignProfile(originalSupplement.name.trim());
+      setAutoAssignedProfile(assignedProfile);
+      
+      // If supplement doesn't have a profile yet, use auto-assigned
+      if (!originalSupplement.substance_profile_id) {
+        setSelectedProfileId(assignedProfile.id);
+        setCurrentProfile(assignedProfile);
+      }
+    } catch (error) {
+      console.error('Failed to auto-assign profile:', error);
+      const fallback = GENERAL_SUPPLEMENT_PROFILE;
+      setAutoAssignedProfile(fallback);
+      if (!originalSupplement.substance_profile_id) {
+        setSelectedProfileId(fallback.id);
+        setCurrentProfile(fallback);
+      }
+    } finally {
+      setIsLoadingProfile(false);
+    }
   };
 
   const handleSave = async () => {
@@ -163,292 +184,522 @@ export default function EditSupplementScreen() {
 
     setIsSubmitting(true);
     try {
-      await updateSupplement({
-        default_dosage: Number(dosage),
-        icon_id: selectedIcon,
-        color: selectedColor
-      });
+      const db = await openDatabase();
+      
+      // Update basic supplement info
+      await db.runAsync(
+        'UPDATE supplements SET default_dosage = ?, icon_id = ?, color = ? WHERE id = ?',
+        [Number(dosage), selectedIcon, selectedColor, supplementId]
+      );
+      
+      // Update profile association if changed
+      if (selectedProfileId !== originalSupplement.substance_profile_id) {
+        await updateSupplementProfileId(supplementId, selectedProfileId);
+      }
 
       router.back();
     } catch (error) {
       console.error('Failed to update supplement:', error);
-      Alert.alert('Error', 'Failed to update supplement. Please try again.');
+      Alert.alert('Error', 'Failed to save changes. Please try again.');
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleDelete = () => {
-    Alert.alert(
-      'Delete Supplement',
-      `Are you sure you want to delete "${originalSupplement.name}"? This will also delete all logged entries for this supplement.`,
-      [
-        { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: async () => {
-            setIsSubmitting(true);
-            try {
-              await deleteSupplement();
-              router.back();
-            } catch (error) {
-              console.error('Failed to delete supplement:', error);
-              Alert.alert('Error', 'Failed to delete supplement. Please try again.');
-            } finally {
-              setIsSubmitting(false);
-            }
-          }
-        }
-      ]
-    );
   };
 
   const handleCancel = () => {
     router.back();
   };
 
+  const addDosageLimit = async () => {
+    const maxDosage = Number(newDosageLimitMaxStr);
+    const hours = Number(newDosageLimitHoursStr);
+    
+    if (isNaN(maxDosage) || maxDosage <= 0) {
+      Alert.alert('Invalid Input', 'Please enter a valid maximum dosage');
+      return;
+    }
+    
+    if (isNaN(hours) || hours <= 0) {
+      Alert.alert('Invalid Input', 'Please enter a valid time window in hours');
+      return;
+    }
+    
+    const newLimit: DosageLimitParams = {
+      max_dosage: maxDosage,
+      time_window_hours: hours
+    };
+    
+    try {
+      await addExclusion({
+        supplement_id: supplementId,
+        exclusion_type: 'dosage_limit',
+        parameters: JSON.stringify(newLimit)
+      });
+      
+      setShowAddDosageLimit(false);
+      await loadExclusions(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to add exclusion:', error);
+      Alert.alert('Error', 'Failed to add dose limit. Please try again.');
+    }
+  };
+
+  const removeDosageLimit = async (exclusion: Exclusion) => {
+    try {
+      await deleteExclusion(exclusion.id);
+      await loadExclusions(); // Refresh the list
+    } catch (error) {
+      console.error('Failed to remove exclusion:', error);
+      Alert.alert('Error', 'Failed to remove dose limit. Please try again.');
+    }
+  };
+
+  const dosageLimitExclusions = exclusions.filter(ex => ex.exclusion_type === 'dosage_limit');
+
+  // Determine which profile to display
+  const displayProfile = currentProfile || autoAssignedProfile;
+  
   return (
-    <ThemedView style={styles.container} safeArea>
-      <KeyboardAvoidingView 
-        style={{ flex: 1 }} 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    <KeyboardAvoidingView 
+      style={styles.container} 
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+    >
+      <ScrollView 
+        ref={scrollViewRef}
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
       >
-        <ThemedView style={styles.header}>
-          <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
-            <ThemedText style={styles.cancelText}>Cancel</ThemedText>
+        {/* Header */}
+        <View style={styles.header}>
+          <TouchableOpacity onPress={handleCancel} accessibilityRole="button" accessibilityLabel="Cancel" testID="btn-edit-supplement-cancel">
+            <Ionicons name="arrow-back" size={24} color={tintColor} />
           </TouchableOpacity>
-          <ThemedText type="title" style={styles.title}>Edit Supplement</ThemedText>
-          <TouchableOpacity 
-            onPress={handleSave} 
-            style={[styles.saveButton, { backgroundColor: tintColor }]}
-            disabled={isSubmitting}
-          >
-            <ThemedText style={styles.saveText}>Save</ThemedText>
-          </TouchableOpacity>
-        </ThemedView>
-
-        <ScrollView ref={scrollViewRef} style={styles.content} showsVerticalScrollIndicator={false}>
-          <ThemedView style={styles.section}>
-            <ThemedText style={styles.label}>Name</ThemedText>
-            <View style={[styles.disabledInput, { borderColor: '#E5E5E7' }]}>
-              <ThemedText style={styles.disabledText}>{originalSupplement.name}</ThemedText>
-            </View>
-            <ThemedText style={styles.helperText}>Name cannot be changed</ThemedText>
-          </ThemedView>
-
-          <ThemedView style={styles.section}>
-            <ThemedText style={styles.label}>Default Dosage</ThemedText>
-            <View style={styles.dosageContainer}>
-              <TextInput
-                style={[styles.dosageInput, { borderColor: tintColor + '30', color: textColor }]}
-                value={dosage}
-                onChangeText={setDosage}
-                placeholder="Amount"
-                placeholderTextColor="#8E8E93"
-                keyboardType="numeric"
-                maxLength={10}
-              />
-              <View style={[styles.disabledUnit, { borderColor: '#E5E5E7' }]}>
-                <ThemedText style={styles.disabledText}>{originalSupplement.dosage_unit}</ThemedText>
-              </View>
-            </View>
-            <ThemedText style={styles.helperText}>Unit cannot be changed</ThemedText>
-          </ThemedView>
-
-          <ThemedView style={styles.section}>
-            <ThemedText style={styles.label}>Icon</ThemedText>
-            <View style={styles.iconGrid}>
-              {AVAILABLE_ICONS.map((iconName) => (
-                <TouchableOpacity
-                  key={iconName}
-                  style={[
-                    styles.iconButton,
-                    selectedIcon === iconName && { 
-                      backgroundColor: tintColor + '20',
-                      borderColor: tintColor 
-                    }
-                  ]}
-                  onPress={() => setSelectedIcon(iconName)}
-                >
-                  <Ionicons
-                    name={iconName as any}
-                    size={24}
-                    color={selectedIcon === iconName ? tintColor : '#8E8E93'}
-                  />
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ThemedView>
-
-          <ThemedView style={styles.section}>
-            <ThemedText style={styles.label}>Color</ThemedText>
-            <View style={styles.colorGrid}>
-              {DEFAULT_COLORS.map((color) => (
-                <TouchableOpacity
-                  key={color}
-                  style={[
-                    styles.colorButton,
-                    { backgroundColor: color },
-                    selectedColor === color && styles.selectedColorButton
-                  ]}
-                  onPress={() => setSelectedColor(color)}
-                >
-                  {selectedColor === color && (
-                    <Ionicons
-                      name="checkmark"
-                      size={20}
-                      color={getContrastingTextColor(color)}
-                    />
-                  )}
-                </TouchableOpacity>
-              ))}
-            </View>
-          </ThemedView>
-
-          <ThemedView style={styles.preview}>
-            <ThemedText style={styles.previewLabel}>Preview</ThemedText>
-            <View style={[styles.previewCard, { backgroundColor: selectedColor }]}>
-              <View style={styles.previewContent}>
-                <Ionicons
-                  name={selectedIcon as any}
-                  size={24}
-                  color={getContrastingTextColor(selectedColor)}
-                  style={styles.previewIcon}
-                />
-                <View style={styles.previewText}>
-                  <ThemedText style={[styles.previewName, { color: getContrastingTextColor(selectedColor) }]}>
-                    {originalSupplement.name}
-                  </ThemedText>
-                  <ThemedText style={[styles.previewDosage, { color: getContrastingTextColor(selectedColor), opacity: 0.8 }]}>
-                    {dosage || '0'} {originalSupplement.dosage_unit}
-                  </ThemedText>
-                </View>
-              </View>
-            </View>
-          </ThemedView>
-
-          <ThemedView style={styles.section}>
-            <View style={styles.sectionHeader}>
-              <ThemedText style={styles.label}>Warnings</ThemedText>
-              <TouchableOpacity
-                style={[styles.addButton, { backgroundColor: tintColor }]}
-                onPress={() => {
-                  setShowAddDosageLimit(true);
-                  setNewDosageLimitMaxStr('');
-                  setNewDosageLimitHoursStr('24');
-                  setTimeout(() => {
-                    scrollViewRef.current?.scrollToEnd({ animated: true });
-                  }, 100);
-                }}
-              >
-                <Ionicons name="add" size={20} color="white" />
-              </TouchableOpacity>
-            </View>
-            
-            {exclusions.filter(e => e.exclusion_type === 'dosage_limit').map((exclusion) => {
-              const params = JSON.parse(exclusion.parameters);
-              return (
-                <View key={exclusion.id} style={[styles.exclusionCard, { borderColor: tintColor + '20' }]}>
-                  <View style={styles.exclusionContent}>
-                    <Ionicons
-                      name="warning"
-                      size={20}
-                      color="#FF9500"
-                      style={styles.exclusionIcon}
-                    />
-                    <View style={styles.exclusionText}>
-                      <ThemedText style={styles.exclusionTitle}>Dosage Limit</ThemedText>
-                      <ThemedText style={styles.exclusionDescription}>
-                        Max {params.max_dosage}{originalSupplement.dosage_unit} per {params.time_window_hours} hours
-                      </ThemedText>
-                    </View>
-                    <TouchableOpacity
-                      style={styles.deleteExclusionButton}
-                      onPress={() => handleDeleteExclusion(exclusion.id)}
-                    >
-                      <Ionicons name="trash-outline" size={16} color="#FF3B30" />
-                    </TouchableOpacity>
-                  </View>
-                </View>
-              );
-            })}
-
-            {exclusions.filter(e => e.exclusion_type === 'dosage_limit').length === 0 && (
-              <ThemedText style={styles.noExclusionsText}>
-                No warnings configured. Tap + to add warnings.
-              </ThemedText>
-            )}
-          </ThemedView>
-
-          {showAddDosageLimit && (
-            <ThemedView style={styles.addExclusionSection}>
-              <ThemedText style={styles.label}>Add Warning</ThemedText>
-              
-              <View style={styles.dosageLimitInputs}>
-                <View style={styles.dosageInputGroup}>
-                  <ThemedText style={styles.dosageLabel}>Max Dosage:</ThemedText>
-                  <TextInput
-                    style={[styles.dosageInput, { borderColor: tintColor + '30', color: textColor }]}
-                    value={newDosageLimitMaxStr}
-                    onChangeText={setNewDosageLimitMaxStr}
-                    placeholder="Amount"
-                    placeholderTextColor="#8E8E93"
-                    keyboardType="decimal-pad"
-                  />
-                  <ThemedText style={styles.unitText}>{originalSupplement.dosage_unit}</ThemedText>
-                </View>
-                <View style={styles.hoursInputGroup}>
-                  <ThemedText style={styles.hoursLabel}>Per:</ThemedText>
-                  <TextInput
-                    style={[styles.hoursInput, { borderColor: tintColor + '30', color: textColor }]}
-                    value={newDosageLimitHoursStr}
-                    onChangeText={setNewDosageLimitHoursStr}
-                    placeholder="Hours"
-                    placeholderTextColor="#8E8E93"
-                    keyboardType="decimal-pad"
-                  />
-                  <ThemedText style={styles.unitText}>hours</ThemedText>
-                </View>
-              </View>
-
-              <View style={styles.exclusionButtons}>
-                <TouchableOpacity
-                  style={styles.cancelExclusionButton}
-                  onPress={() => setShowAddDosageLimit(false)}
-                >
-                  <ThemedText style={styles.cancelExclusionText}>Cancel</ThemedText>
-                </TouchableOpacity>
-                
-                <TouchableOpacity
-                  style={[
-                    styles.addExclusionButton,
-                    { backgroundColor: tintColor },
-                    (!newDosageLimitMaxStr || !parseFloat(newDosageLimitMaxStr) || !newDosageLimitHoursStr || !parseFloat(newDosageLimitHoursStr)) && { opacity: 0.5 }
-                  ]}
-                  onPress={handleAddDosageLimit}
-                  disabled={!newDosageLimitMaxStr || !parseFloat(newDosageLimitMaxStr) || !newDosageLimitHoursStr || !parseFloat(newDosageLimitHoursStr)}
-                >
-                  <ThemedText style={styles.addExclusionText}>Add Warning</ThemedText>
-                </TouchableOpacity>
-              </View>
-            </ThemedView>
-          )}
-
+          <ThemedText style={styles.headerTitle}>Edit Supplement</ThemedText>
           <TouchableOpacity
-            style={styles.deleteButton}
-            onPress={handleDelete}
-            disabled={isSubmitting}
+            onPress={handleSave}
+            disabled={isSubmitting || !dosage.trim()}
+            style={[
+              styles.saveButton,
+              !dosage.trim() && styles.saveButtonDisabled
+            ]}
+            accessibilityRole="button"
+            accessibilityLabel="Save changes"
+            testID="btn-edit-supplement-save"
           >
-            <Ionicons name="trash-outline" size={20} color="#FF3B30" />
-            <ThemedText style={styles.deleteButtonText}>
-              Delete Supplement
+            <ThemedText style={[
+              styles.saveButtonText,
+              { color: !dosage.trim() ? textColor + '50' : tintColor }
+            ]}>
+              {isSubmitting ? 'Saving...' : 'Save'}
             </ThemedText>
           </TouchableOpacity>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </ThemedView>
+        </View>
+
+        {/* Supplement Name (read-only) */}
+        <ThemedView style={styles.section}>
+          <ThemedText style={styles.label}>Name</ThemedText>
+          <View style={[styles.readOnlyInput, { borderColor: textColor + '20' }]}>
+            <ThemedText style={styles.readOnlyText}>{originalSupplement.name}</ThemedText>
+            <Ionicons name="lock-closed" size={16} color={textColor + '40'} />
+          </View>
+          <ThemedText style={styles.helpText}>
+            Supplement name cannot be changed. Create a new supplement if needed.
+          </ThemedText>
+        </ThemedView>
+
+        {/* Dosage */}
+        <View style={styles.doubleSection}>
+          <ThemedView style={[styles.section, styles.halfWidth]}>
+            <ThemedText style={styles.label}>Dosage</ThemedText>
+            <TextInput
+              style={[styles.textInput, { color: textColor, borderColor: textColor + '30' }]}
+              value={dosage}
+              onChangeText={setDosage}
+              placeholder="0"
+              placeholderTextColor={textColor + '50'}
+              keyboardType="numeric"
+              accessibilityLabel="Default dosage"
+              testID="input-edit-dosage"
+            />
+          </ThemedView>
+
+          <ThemedView style={[styles.section, styles.halfWidth]}>
+            <ThemedText style={styles.label}>Unit</ThemedText>
+            <View style={[styles.readOnlyInput, { borderColor: textColor + '20' }]}>
+              <ThemedText style={styles.readOnlyText}>{originalSupplement.dosage_unit}</ThemedText>
+              <Ionicons name="lock-closed" size={16} color={textColor + '40'} />
+            </View>
+          </ThemedView>
+        </View>
+
+        {/* Appearance Customization */}
+        <ThemedView style={styles.section}>
+          <ThemedText style={styles.label}>Appearance</ThemedText>
+          
+          {/* Icon Selection */}
+          <View style={styles.iconGrid}>
+            {AVAILABLE_ICONS.map((icon) => (
+              <TouchableOpacity
+                key={icon}
+                style={[
+                  styles.iconOption,
+                  selectedIcon === icon && {
+                    backgroundColor: tintColor,
+                    transform: [{ scale: 1.1 }]
+                  }
+                ]}
+                onPress={() => setSelectedIcon(icon)}
+                accessibilityRole="button"
+                accessibilityLabel={`Select ${icon} icon`}
+                testID={`btn-edit-icon-${icon}`}
+              >
+                <Ionicons
+                  name={icon as any}
+                  size={20}
+                  color={selectedIcon === icon ? 'white' : textColor}
+                />
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Color Selection */}
+          <View style={styles.colorGrid}>
+            {DEFAULT_COLORS.map((color) => (
+              <TouchableOpacity
+                key={color}
+                style={[
+                  styles.colorOption,
+                  { backgroundColor: color },
+                  selectedColor === color && styles.selectedColorOption
+                ]}
+                onPress={() => setSelectedColor(color)}
+                accessibilityRole="button"
+                accessibilityLabel={`Select color ${color}`}
+                testID={`btn-edit-color-${color.replace('#','')}`}
+              />
+            ))}
+          </View>
+
+          {/* Preview */}
+          <View style={[styles.previewCard, { backgroundColor: selectedColor }]}>
+            <View style={styles.previewContent}>
+              <Ionicons
+                name={selectedIcon as any}
+                size={24}
+                color={getContrastingTextColor(selectedColor)}
+                style={styles.previewIcon}
+              />
+              <View style={styles.previewText}>
+                <ThemedText style={[styles.previewName, { color: getContrastingTextColor(selectedColor) }]}>
+                  {originalSupplement.name}
+                </ThemedText>
+                <ThemedText style={[styles.previewDosage, { color: getContrastingTextColor(selectedColor), opacity: 0.8 }]}>
+                  {dosage || '0'} {originalSupplement.dosage_unit}
+                </ThemedText>
+              </View>
+            </View>
+          </View>
+        </ThemedView>
+
+        {/* Effect Profile Section - Clean UX */}
+        <ThemedView style={styles.section}>
+          <View style={styles.sectionHeaderClean}>
+            <ThemedText style={styles.label}>Effect Timeline</ThemedText>
+            <ThemedText style={styles.labelSubtext}>
+              How this affects your performance over time
+            </ThemedText>
+          </View>
+          
+          {/* Profile Assignment Card */}
+          {isLoadingProfile ? (
+            <View style={styles.profileCard}>
+              <View style={styles.profileLoadingState}>
+                <View style={[styles.loadingSpinner, { borderTopColor: tintColor }]} />
+                <ThemedText style={styles.profileLoadingText}>
+                  Loading profile...
+                </ThemedText>
+              </View>
+            </View>
+          ) : displayProfile ? (
+            <View style={styles.profileCard}>
+              <View style={styles.profileRowContainer}>
+                <View style={styles.profileMainInfo}>
+                  <View style={styles.profileIcon}>
+                    <Ionicons 
+                      name={getConfidenceIndicator(displayProfile).icon as any} 
+                      size={24} 
+                      color={getConfidenceIndicator(displayProfile).color} 
+                    />
+                  </View>
+                  <View style={styles.profileDetails}>
+                    <View style={styles.profileTitleRow}>
+                      <ThemedText style={styles.profileTitle}>
+                        {getConfidenceIndicator(displayProfile).level === 'high' ? (
+                          <>
+                            <ThemedText style={[styles.profileTitle, { color: '#34C759' }]}>✓ Matched: </ThemedText>
+                            {getFriendlyProfileName(displayProfile)} profile
+                          </>
+                        ) : (
+                          getFriendlyProfileName(displayProfile) + ' profile'
+                        )}
+                      </ThemedText>
+                    </View>
+                    <ThemedText style={styles.profileSubtitle}>
+                      {getConfidenceIndicator(displayProfile).description}
+                    </ThemedText>
+                    {originalSupplement.substance_profile_id && (
+                      <ThemedText style={[styles.profileSubtitle, { fontStyle: 'italic', marginTop: 2 }]}>
+                        Currently assigned
+                      </ThemedText>
+                    )}
+                  </View>
+                </View>
+                
+                <TouchableOpacity
+                  style={styles.changeButton}
+                  onPress={() => setShowProfilePicker(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Change effect profile"
+                  testID="btn-edit-change-profile"
+                >
+                  <ThemedText style={[styles.changeButtonText, { color: tintColor }]}>
+                    Change
+                  </ThemedText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          ) : (
+            <View style={styles.profileCard}>
+              <View style={styles.profileEmptyState}>
+                <Ionicons name="help-circle-outline" size={24} color={textColor + '40'} />
+                <ThemedText style={styles.profileEmptyText}>
+                  No profile assigned
+                </ThemedText>
+              </View>
+            </View>
+          )}
+
+          {/* Profile Picker Modal */}
+          {showProfilePicker && (
+            <View style={styles.profilePickerOverlay}>
+              <View style={styles.profilePickerModal}>
+                <View style={styles.profilePickerHeader}>
+                  <ThemedText style={styles.profilePickerTitle}>Choose Profile</ThemedText>
+                  <TouchableOpacity onPress={() => setShowProfilePicker(false)} accessibilityRole="button" accessibilityLabel="Close profile picker" testID="btn-edit-close-profile-picker">
+                    <Ionicons name="close" size={24} color={textColor} />
+                  </TouchableOpacity>
+                </View>
+                
+                <ScrollView style={styles.profilePickerContent} showsVerticalScrollIndicator={false}>
+                  {/* Auto-assigned option */}
+                  {autoAssignedProfile && (
+                    <TouchableOpacity
+                      style={[
+                        styles.profilePickerOption,
+                        (isAutoAssigned || selectedProfileId === autoAssignedProfile.id) && styles.profilePickerOptionSelected
+                      ]}
+                      onPress={() => {
+                        setSelectedProfileId(autoAssignedProfile.id);
+                        setCurrentProfile(autoAssignedProfile);
+                        setIsAutoAssigned(true);
+                        setShowProfilePicker(false);
+                      }}
+                      accessibilityRole="button"
+                      testID={`btn-edit-profile-${autoAssignedProfile.id}`}
+                    >
+                      <View style={styles.profilePickerOptionContent}>
+                        <Ionicons 
+                          name={getConfidenceIndicator(autoAssignedProfile).icon as any} 
+                          size={20} 
+                          color={getConfidenceIndicator(autoAssignedProfile).color} 
+                        />
+                        <View style={styles.profilePickerOptionText}>
+                          <ThemedText style={styles.profilePickerOptionName}>
+                            {getFriendlyProfileName(autoAssignedProfile)} (auto-matched)
+                          </ThemedText>
+                          <ThemedText style={styles.profilePickerOptionMeta}>
+                            {getConfidenceIndicator(autoAssignedProfile).description}
+                          </ThemedText>
+                        </View>
+                      </View>
+                      {(isAutoAssigned || selectedProfileId === autoAssignedProfile.id) && (
+                        <Ionicons name="checkmark-circle" size={20} color={tintColor} />
+                      )}
+                    </TouchableOpacity>
+                  )}
+                  
+                  {/* Divider */}
+                  {autoAssignedProfile && (
+                    <View style={styles.profilePickerDivider}>
+                      <ThemedText style={styles.profilePickerDividerText}>Other options</ThemedText>
+                    </View>
+                  )}
+                  
+                  {/* All available profiles */}
+                  {availableProfiles
+                    .filter(p => p.id !== autoAssignedProfile?.id)
+                    .concat([GENERAL_SUPPLEMENT_PROFILE])
+                    .map((profile) => {
+                      const confidence = getConfidenceIndicator(profile);
+                      const isSelected = !isAutoAssigned && selectedProfileId === profile.id;
+                      
+                      return (
+                        <TouchableOpacity
+                          key={profile.id}
+                          style={[
+                            styles.profilePickerOption,
+                            isSelected && styles.profilePickerOptionSelected
+                          ]}
+                          onPress={() => {
+                            setSelectedProfileId(profile.id);
+                            setCurrentProfile(profile);
+                            setIsAutoAssigned(false);
+                            setShowProfilePicker(false);
+                          }}
+                          accessibilityRole="button"
+                          testID={`btn-edit-profile-${profile.id}`}
+                        >
+                          <View style={styles.profilePickerOptionContent}>
+                            <Ionicons 
+                              name={confidence.icon as any} 
+                              size={20} 
+                              color={confidence.color} 
+                            />
+                            <View style={styles.profilePickerOptionText}>
+                              <ThemedText style={styles.profilePickerOptionName}>
+                                {getFriendlyProfileName(profile)}
+                              </ThemedText>
+                              <ThemedText style={styles.profilePickerOptionMeta}>
+                                {confidence.description}
+                              </ThemedText>
+                            </View>
+                          </View>
+                          {isSelected && (
+                            <Ionicons name="checkmark-circle" size={20} color={tintColor} />
+                          )}
+                        </TouchableOpacity>
+                      );
+                    })}
+                </ScrollView>
+              </View>
+            </View>
+          )}
+        </ThemedView>
+
+        {/* Dose Limits */}
+        <ThemedView style={styles.section}>
+          <View style={styles.sectionHeader}>
+            <ThemedText style={styles.label}>Dose Limits</ThemedText>
+            <TouchableOpacity
+              style={[styles.addButton, { backgroundColor: tintColor }]}
+              onPress={() => {
+                setShowAddDosageLimit(true);
+                setNewDosageLimitMaxStr('');
+                setNewDosageLimitHoursStr('24');
+                setTimeout(() => {
+                  scrollViewRef.current?.scrollToEnd({ animated: true });
+                }, 100);
+              }}
+              accessibilityRole="button"
+              accessibilityLabel="Add dose limit"
+              testID="btn-edit-add-dose-limit"
+            >
+              <Ionicons name="add" size={20} color="white" />
+            </TouchableOpacity>
+          </View>
+          
+          {dosageLimitExclusions.map((exclusion) => {
+            const params: DosageLimitParams = JSON.parse(exclusion.parameters);
+            return (
+              <View key={exclusion.id} style={[styles.exclusionCard, { borderColor: tintColor + '20' }]}>
+                <View style={styles.exclusionInfo}>
+                  <Ionicons name="warning-outline" size={20} color="#FF9500" />
+                  <View style={styles.exclusionDetails}>
+                    <ThemedText style={styles.exclusionTitle}>
+                      Max {params.max_dosage} {originalSupplement.dosage_unit} per {params.time_window_hours}h
+                    </ThemedText>
+                    <ThemedText style={styles.exclusionDescription}>
+                      Safety limit to prevent overconsumption
+                    </ThemedText>
+                  </View>
+                </View>
+                <TouchableOpacity
+                  onPress={() => removeDosageLimit(exclusion)}
+                  style={styles.exclusionRemove}
+                  accessibilityRole="button"
+                  accessibilityLabel="Remove dose limit"
+                  testID={`btn-edit-remove-dose-limit-${dosageLimitExclusions.indexOf(exclusion)}`}
+                >
+                  <Ionicons name="close-circle" size={20} color="#FF3B30" />
+                </TouchableOpacity>
+              </View>
+            );
+          })}
+          
+          {showAddDosageLimit && (
+            <View style={styles.addExclusionForm}>
+              <ThemedText style={styles.addExclusionTitle}>Add Dose Limit</ThemedText>
+              
+              <View style={styles.addExclusionInputs}>
+                <View style={styles.addExclusionInputGroup}>
+                  <ThemedText style={styles.addExclusionLabel}>Max Amount</ThemedText>
+                  <TextInput
+                    style={[styles.addExclusionInput, { color: textColor, borderColor: textColor + '30' }]}
+                    value={newDosageLimitMaxStr}
+                    onChangeText={setNewDosageLimitMaxStr}
+                    keyboardType="numeric"
+                    placeholder="100"
+                    placeholderTextColor={textColor + '50'}
+                    accessibilityLabel="Maximum dosage amount"
+                    testID="input-edit-dose-limit-max"
+                  />
+                </View>
+                
+                <View style={styles.addExclusionInputGroup}>
+                  <ThemedText style={styles.addExclusionLabel}>Time Window (hours)</ThemedText>
+                  <TextInput
+                    style={[styles.addExclusionInput, { color: textColor, borderColor: textColor + '30' }]}
+                    value={newDosageLimitHoursStr}
+                    onChangeText={setNewDosageLimitHoursStr}
+                    keyboardType="numeric"
+                    placeholder="24"
+                    placeholderTextColor={textColor + '50'}
+                    accessibilityLabel="Time window in hours"
+                    testID="input-edit-dose-limit-hours"
+                  />
+                </View>
+              </View>
+              
+              <View style={styles.addExclusionButtons}>
+                <TouchableOpacity
+                  style={[styles.addExclusionButton, styles.addExclusionButtonCancel]}
+                  onPress={() => setShowAddDosageLimit(false)}
+                  accessibilityRole="button"
+                  testID="btn-edit-cancel-dose-limit"
+                >
+                  <ThemedText style={styles.addExclusionButtonCancelText}>Cancel</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.addExclusionButton, { backgroundColor: tintColor }]}
+                  onPress={addDosageLimit}
+                  accessibilityRole="button"
+                  testID="btn-edit-confirm-dose-limit"
+                >
+                  <ThemedText style={styles.addExclusionButtonSaveText}>Add Limit</ThemedText>
+                </TouchableOpacity>
+              </View>
+            </View>
+          )}
+          
+          {dosageLimitExclusions.length === 0 && !showAddDosageLimit && (
+            <ThemedText style={styles.noExclusionsText}>
+              No dose limits set. Add one to prevent overconsumption.
+            </ThemedText>
+          )}
+        </ThemedView>
+      </ScrollView>
+    </KeyboardAvoidingView>
   );
 }
 
@@ -456,136 +707,130 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    padding: 16,
+    paddingBottom: 40,
+  },
   header: {
     flexDirection: 'row',
-    alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingTop: 24,
-    paddingBottom: 12,
-    marginBottom: 20,
+    alignItems: 'center',
+    marginBottom: 24,
+    paddingTop: 8,
   },
-  cancelButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 12,
-  },
-  cancelText: {
-    fontSize: 16,
-    color: '#8E8E93',
-  },
-  title: {
-    fontSize: 20,
-    fontWeight: 'bold',
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: '700',
   },
   saveButton: {
-    paddingVertical: 8,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
   },
-  saveText: {
+  saveButtonDisabled: {
+    opacity: 0.5,
+  },
+  saveButtonText: {
     fontSize: 16,
-    color: 'white',
     fontWeight: '600',
-  },
-  content: {
-    flex: 1,
-    paddingHorizontal: 20,
   },
   section: {
     marginBottom: 24,
+    padding: 16,
+    borderRadius: 12,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionHeaderClean: {
+    marginBottom: 16,
   },
   label: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 8,
   },
-  disabledInput: {
+  labelSubtext: {
+    fontSize: 14,
+    opacity: 0.6,
+    marginTop: 2,
+  },
+  textInput: {
     borderWidth: 1,
     borderRadius: 8,
     paddingVertical: 12,
     paddingHorizontal: 16,
-    backgroundColor: '#F2F2F7',
-  },
-  disabledText: {
     fontSize: 16,
-    color: '#8E8E93',
   },
-  helperText: {
+  readOnlyInput: {
+    borderWidth: 1,
+    borderRadius: 8,
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: 'rgba(128,128,128,0.05)',
+  },
+  readOnlyText: {
+    fontSize: 16,
+    opacity: 0.7,
+  },
+  helpText: {
     fontSize: 12,
-    color: '#8E8E93',
-    marginTop: 4,
+    opacity: 0.6,
+    marginTop: 6,
   },
-  dosageContainer: {
+  doubleSection: {
     flexDirection: 'row',
     gap: 12,
+    marginBottom: 24,
   },
-  dosageInput: {
-    flex: 2,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-  },
-  disabledUnit: {
+  halfWidth: {
     flex: 1,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    backgroundColor: '#F2F2F7',
-    justifyContent: 'center',
+    marginBottom: 0,
   },
   iconGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 8,
+    marginBottom: 16,
   },
-  iconButton: {
-    width: 50,
-    height: 50,
-    borderWidth: 1,
-    borderColor: '#E5E5E7',
-    borderRadius: 8,
+  iconOption: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(128,128,128,0.3)',
   },
   colorGrid: {
     flexDirection: 'row',
     flexWrap: 'wrap',
-    gap: 12,
+    gap: 8,
+    marginBottom: 16,
   },
-  colorButton: {
-    width: 50,
-    height: 50,
-    borderRadius: 25,
-    alignItems: 'center',
-    justifyContent: 'center',
+  colorOption: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
     borderWidth: 2,
     borderColor: 'transparent',
   },
-  selectedColorButton: {
-    borderColor: '#FFFFFF',
-    shadowColor: '#000000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
-  },
-  preview: {
-    marginTop: 8,
-    marginBottom: 32,
-  },
-  previewLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    marginBottom: 8,
+  selectedColorOption: {
+    borderColor: 'white',
+    transform: [{ scale: 1.1 }],
   },
   previewCard: {
-    borderWidth: 1,
     borderRadius: 12,
-    paddingVertical: 16,
-    paddingHorizontal: 16,
+    padding: 16,
+    marginTop: 8,
   },
   previewContent: {
     flexDirection: 'row',
@@ -598,37 +843,175 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   previewName: {
-    fontSize: 18,
-    fontWeight: '600',
-    marginBottom: 4,
-  },
-  previewDosage: {
-    fontSize: 14,
-    color: '#8E8E93',
-  },
-  deleteButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 16,
-    paddingHorizontal: 20,
-    borderRadius: 12,
-    borderWidth: 1,
-    borderColor: '#FF3B30',
-    marginBottom: 40,
-    gap: 8,
-  },
-  deleteButtonText: {
-    color: '#FF3B30',
     fontSize: 16,
     fontWeight: '600',
   },
-  sectionHeader: {
+  previewDosage: {
+    fontSize: 14,
+    marginTop: 2,
+  },
+  
+  // Profile Section - Clean UX (same as add-supplement)
+  profileCard: {
+    borderWidth: 1,
+    borderColor: 'rgba(128,128,128,0.2)',
+    borderRadius: 12,
+    padding: 16,
+    backgroundColor: 'rgba(128,128,128,0.05)',
+  },
+  profileLoadingState: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  loadingSpinner: {
+    width: 20,
+    height: 20,
+    borderWidth: 2,
+    borderRadius: 10,
+    borderColor: 'rgba(128,128,128,0.3)',
+    borderTopColor: '#00D4FF',
+  },
+  profileLoadingText: {
+    fontSize: 15,
+    opacity: 0.7,
+  },
+  profileRowContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    gap: 12,
+  },
+  profileMainInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  profileIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: 'rgba(128,128,128,0.1)',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  profileDetails: {
+    flex: 1,
+  },
+  profileTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 2,
+  },
+  profileTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  profileSubtitle: {
+    fontSize: 13,
+    opacity: 0.7,
+  },
+  changeButton: {
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 6,
+    backgroundColor: 'rgba(128,128,128,0.1)',
+    alignSelf: 'flex-start',
+  },
+  changeButtonText: {
+    fontSize: 13,
+    fontWeight: '500',
+  },
+  profileEmptyState: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  profileEmptyText: {
+    fontSize: 15,
+    opacity: 0.5,
+  },
+  
+  // Profile Picker Modal (same as add-supplement)
+  profilePickerOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    zIndex: 1000,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  profilePickerModal: {
+    backgroundColor: 'white',
+    borderRadius: 16,
+    maxHeight: '80%',
+    width: '90%',
+    maxWidth: 400,
+  },
+  profilePickerHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(128,128,128,0.2)',
+  },
+  profilePickerTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  profilePickerContent: {
+    maxHeight: 400,
+  },
+  profilePickerOption: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
+    padding: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(128,128,128,0.1)',
   },
+  profilePickerOptionSelected: {
+    backgroundColor: 'rgba(0,122,255,0.08)',
+  },
+  profilePickerOptionContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  profilePickerOptionText: {
+    marginLeft: 12,
+    flex: 1,
+  },
+  profilePickerOptionName: {
+    fontSize: 15,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  profilePickerOptionMeta: {
+    fontSize: 13,
+    opacity: 0.6,
+  },
+  profilePickerDivider: {
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    backgroundColor: 'rgba(128,128,128,0.05)',
+  },
+  profilePickerDividerText: {
+    fontSize: 13,
+    opacity: 0.6,
+    fontWeight: '500',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+
+  // Existing dose limit styles
   addButton: {
     width: 32,
     height: 32,
@@ -637,222 +1020,94 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   exclusionCard: {
-    borderWidth: 1,
-    borderRadius: 8,
-    padding: 12,
-    marginBottom: 8,
-  },
-  exclusionContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 8,
+    marginBottom: 8,
   },
-  exclusionIcon: {
-    marginRight: 12,
+  exclusionInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
   },
-  exclusionText: {
+  exclusionDetails: {
+    marginLeft: 10,
     flex: 1,
   },
   exclusionTitle: {
     fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 2,
+    fontWeight: '500',
   },
   exclusionDescription: {
     fontSize: 12,
-    opacity: 0.7,
+    opacity: 0.6,
+    marginTop: 1,
   },
-  deleteExclusionButton: {
+  exclusionRemove: {
     padding: 4,
   },
-  noExclusionsText: {
-    fontSize: 14,
-    opacity: 0.6,
-    textAlign: 'center',
-    fontStyle: 'italic',
-    marginVertical: 20,
-  },
-  addExclusionSection: {
-    marginBottom: 24,
+  addExclusionForm: {
+    borderWidth: 1,
+    borderColor: 'rgba(128,128,128,0.3)',
+    borderRadius: 8,
     padding: 16,
-    borderRadius: 8,
-    backgroundColor: 'rgba(128, 128, 128, 0.1)',
+    marginTop: 8,
   },
-  exclusionTypeSelector: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  typeButton: {
-    flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E5E7',
-    alignItems: 'center',
-  },
-  typeButtonText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  timeWindowInputs: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 16,
-  },
-  timeInputGroup: {
-    flex: 1,
-  },
-  timeLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginBottom: 8,
-  },
-  timeInput: {
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
+  addExclusionTitle: {
     fontSize: 16,
-    textAlign: 'center',
-  },
-  dosageLimitInputs: {
-    marginBottom: 16,
-  },
-  dosageInputGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-    gap: 8,
-  },
-  dosageLabel: {
-    fontSize: 14,
     fontWeight: '600',
-    minWidth: 80,
-  },
-  hoursInputGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  hoursLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    minWidth: 80,
-  },
-  hoursInput: {
-    flex: 1,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    fontSize: 16,
-  },
-  scheduleModeLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    marginTop: 12,
-    marginBottom: 8,
-  },
-  scheduleModeSelector: {
-    flexDirection: 'row',
-    gap: 12,
     marginBottom: 12,
   },
-  scheduleModeButton: {
-    flex: 1,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E5E7',
-    alignItems: 'center',
-  },
-  scheduleModeButtonText: {
-    fontSize: 13,
-    fontWeight: '500',
-  },
-  intervalInputGroup: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 4,
-  },
-  intervalLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  intervalInput: {
-    width: 60,
-    borderWidth: 1,
-    borderRadius: 8,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    textAlign: 'center',
-  },
-  timeWindowSection: {
-    marginBottom: 16,
-  },
-  daysHint: {
-    fontSize: 12,
-    opacity: 0.6,
-    fontStyle: 'italic',
-    marginTop: 4,
-  },
-  daysSelectorContainer: {
-    marginTop: 4,
-  },
-  daysSelector: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-  },
-  dayButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    borderWidth: 1,
-    borderColor: '#E5E5E7',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  dayButtonText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  unitText: {
-    fontSize: 14,
-    opacity: 0.7,
-    minWidth: 60,
-  },
-  exclusionButtons: {
+  addExclusionInputs: {
     flexDirection: 'row',
     gap: 12,
+    marginBottom: 16,
   },
-  cancelExclusionButton: {
+  addExclusionInputGroup: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
-    borderWidth: 1,
-    borderColor: '#E5E5E7',
-    alignItems: 'center',
   },
-  cancelExclusionText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#8E8E93',
+  addExclusionLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    marginBottom: 6,
+  },
+  addExclusionInput: {
+    borderWidth: 1,
+    borderRadius: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    fontSize: 14,
+  },
+  addExclusionButtons: {
+    flexDirection: 'row',
+    gap: 8,
   },
   addExclusionButton: {
     flex: 1,
-    paddingVertical: 12,
-    paddingHorizontal: 16,
-    borderRadius: 8,
+    paddingVertical: 10,
+    borderRadius: 6,
     alignItems: 'center',
   },
-  addExclusionText: {
-    fontSize: 16,
-    fontWeight: '600',
+  addExclusionButtonCancel: {
+    backgroundColor: 'rgba(128,128,128,0.2)',
+  },
+  addExclusionButtonCancelText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  addExclusionButtonSaveText: {
     color: 'white',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  noExclusionsText: {
+    fontSize: 14,
+    opacity: 0.5,
+    textAlign: 'center',
+    fontStyle: 'italic',
+    paddingVertical: 16,
   },
 });

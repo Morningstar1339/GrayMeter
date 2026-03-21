@@ -129,7 +129,7 @@ export default function DailyReviewScreen() {
   };
 
   const renderCheckbox = (checked: boolean, label: string, onPress: () => void) => (
-    <TouchableOpacity style={styles.checkboxRow} onPress={onPress}>
+    <TouchableOpacity style={styles.checkboxRow} onPress={onPress} accessibilityRole="checkbox" accessibilityLabel={label} accessibilityState={{ checked }} testID={`checkbox-${label.toLowerCase().replace(/\s+/g, '-')}`}>
       <Ionicons
         name={checked ? 'checkbox' : 'square-outline'}
         size={24}
@@ -154,6 +154,9 @@ export default function DailyReviewScreen() {
               currentRating === rating && { backgroundColor: tintColor },
             ]}
             onPress={() => onRate(rating)}
+            accessibilityRole="button"
+            accessibilityLabel={`Rate ${category} ${rating} out of 5`}
+            testID={`btn-rating-${category.toLowerCase().replace(/\s+/g, '-')}-${rating}`}
           >
             <ThemedText
               style={[
@@ -186,6 +189,9 @@ export default function DailyReviewScreen() {
               currentRating === rating && { backgroundColor: tintColor },
             ]}
             onPress={() => onRate(rating)}
+            accessibilityRole="button"
+            accessibilityLabel={`Rate wellness ${rating} out of 5`}
+            testID={`btn-wellness-rating-${rating}`}
           >
             <ThemedText
               style={[
@@ -223,6 +229,9 @@ export default function DailyReviewScreen() {
           style={styles.backButton}
           onPress={() => router.back()}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Go back"
+          testID="btn-daily-review-back"
         >
           <Ionicons name="chevron-back" size={28} color={tintColor} />
         </TouchableOpacity>
@@ -329,6 +338,9 @@ export default function DailyReviewScreen() {
         <TouchableOpacity
           style={[styles.saveButton, { backgroundColor: tintColor }]}
           onPress={handleSave}
+          accessibilityRole="button"
+          accessibilityLabel="Save daily review"
+          testID="btn-daily-review-save"
         >
           <ThemedText style={styles.saveButtonText}>Save Review</ThemedText>
         </TouchableOpacity>

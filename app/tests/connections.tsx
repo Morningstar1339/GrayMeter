@@ -13,282 +13,232 @@ import { Ionicons } from '@expo/vector-icons';
 import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 
 const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
-const DOT_COUNT = 24;
-const DOT_SIZE = 20;
+const NODE_COUNT = 18;
+const NODE_RADIUS = 10;
 
-interface Dot {
+interface Node {
   id: number;
   x: number;
   y: number;
 }
 
-interface Connection {
-  from: number;
-  to: number;
-  length: number;
-}
-
-export default function ConnectionsTestScreen() {
+export default function RoutePlannerScreen() {
   const router = useRouter();
   const params = useLocalSearchParams();
   const tintColor = useThemeColor({}, 'tint');
+  const textColor = useThemeColor({}, 'text');
   const insets = useSafeAreaInsets();
   
   useHierarchicalBack('tests/connections');
   
   const [gameState, setGameState] = useState<'ready' | 'playing' | 'finished'>('ready');
-  const [dots, setDots] = useState<Dot[]>([]);
-  const [connections, setConnections] = useState<Connection[]>([]);
-  const [selectedDot, setSelectedDot] = useState<number | null>(null);
+  const [nodes, setNodes] = useState<Node[]>([]);
+  const [route, setRoute] = useState<number[]>([]);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [score, setScore] = useState(0);
-  const [isConnected, setIsConnected] = useState(false);
   const [optimalLength, setOptimalLength] = useState(0);
+  const [optimalRoute, setOptimalRoute] = useState<number[]>([]);
   const [scheduledTest, setScheduledTest] = useState<any>(null);
   const [studyContext, setStudyContext] = useState<any>(null);
   
   const elapsedTimer = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
 
-  const generateDots = (): Dot[] => {
-    const dots: Dot[] = [];
-    const minDistance = screenWidth / 6; // Minimum 1/6 screen width apart
+  // Play area — full screen minus a thin top bar
+  const topBarHeight = 44;
+  const playTop = insets.top + topBarHeight;
+  const playBottom = screenHeight - insets.bottom;
+  const playHeight = playBottom - playTop;
+  const playLeft = 16;
+  const playRight = screenWidth - 16;
+  const playWidth = playRight - playLeft;
+
+  const generateNodes = (): Node[] => {
+    const result: Node[] = [];
+    const minDist = Math.min(playWidth, playHeight) / 7;
+    const pad = NODE_RADIUS + 8;
     
-    // Proper bounds calculation with safe area
-    const playAreaTop = insets.top + 80; // header + buffer
-    const playAreaBottom = screenHeight - insets.bottom - 150;
-    const playAreaLeft = insets.left + 30;
-    const playAreaRight = screenWidth - insets.right - 30;
-    
-    // For dot placement with radius padding
-    const dotRadius = DOT_SIZE / 2;
-    const minX = playAreaLeft + dotRadius + 10;
-    const maxX = playAreaRight - dotRadius - 10;
-    const minY = playAreaTop + dotRadius + 10;
-    const maxY = playAreaBottom - dotRadius - 10;
-    
-    const attempts = 1000; // Prevent infinite loops
-    
-    for (let i = 0; i < DOT_COUNT; i++) {
-      let validPosition = false;
-      let attemptCount = 0;
-      let newDot: Dot;
+    for (let i = 0; i < NODE_COUNT; i++) {
+      let attempts = 0;
+      let node: Node;
+      let valid = false;
       
       do {
-        newDot = {
+        node = {
           id: i,
-          x: Math.random() * (maxX - minX) + minX,
-          y: Math.random() * (maxY - minY) + minY,
+          x: Math.random() * (playWidth - 2 * pad) + playLeft + pad,
+          y: Math.random() * (playHeight - 2 * pad) + playTop + pad,
         };
-        
-        validPosition = dots.every(existingDot => {
-          const distance = Math.sqrt(
-            Math.pow(newDot.x - existingDot.x, 2) + 
-            Math.pow(newDot.y - existingDot.y, 2)
-          );
-          return distance >= minDistance;
+        valid = result.every(n => {
+          const dx = node.x - n.x;
+          const dy = node.y - n.y;
+          return Math.sqrt(dx * dx + dy * dy) >= minDist;
         });
+        attempts++;
+      } while (!valid && attempts < 1000);
+      
+      result.push(node);
+    }
+    return result;
+  };
+
+  const dist = (a: Node, b: Node): number => {
+    const dx = a.x - b.x;
+    const dy = a.y - b.y;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  const calcRouteLength = (ns: Node[], r: number[]): number => {
+    if (r.length < 2) return 0;
+    let total = 0;
+    for (let i = 0; i < r.length - 1; i++) {
+      total += dist(ns[r[i]], ns[r[i + 1]]);
+    }
+    total += dist(ns[r[r.length - 1]], ns[r[0]]);
+    return total;
+  };
+
+  // Held-Karp exact TSP solver — O(2^n * n^2)
+  // For n=18: 2^18 * 18^2 = ~85M ops, ~38MB memory
+  const solveTSPExact = (ns: Node[]): { length: number; route: number[] } => {
+    const n = ns.length;
+    if (n <= 1) return { length: 0, route: [0] };
+    
+    const FULL = (1 << n) - 1;
+    
+    // Use Float64Arrays for performance
+    const size = 1 << n;
+    const dp: Float64Array[] = new Array(size);
+    const parent: Int8Array[] = new Array(size);
+    
+    for (let mask = 0; mask < size; mask++) {
+      dp[mask] = new Float64Array(n).fill(Infinity);
+      parent[mask] = new Int8Array(n).fill(-1);
+    }
+    
+    // Start from node 0
+    dp[1][0] = 0;
+    
+    // Precompute distance matrix
+    const d: number[][] = new Array(n);
+    for (let i = 0; i < n; i++) {
+      d[i] = new Array(n);
+      for (let j = 0; j < n; j++) {
+        d[i][j] = dist(ns[i], ns[j]);
+      }
+    }
+    
+    for (let mask = 1; mask <= FULL; mask++) {
+      for (let u = 0; u < n; u++) {
+        if (!(mask & (1 << u))) continue;
+        const val = dp[mask][u];
+        if (val === Infinity) continue;
         
-        attemptCount++;
-      } while (!validPosition && attemptCount < attempts);
-      
-      dots.push(newDot);
-    }
-    
-    return dots;
-  };
-
-  const calculateDistance = (dot1: Dot, dot2: Dot): number => {
-    return Math.sqrt(Math.pow(dot1.x - dot2.x, 2) + Math.pow(dot1.y - dot2.y, 2));
-  };
-
-  const calculateMST = (dots: Dot[]): number => {
-    // Kruskal's algorithm to find minimum spanning tree
-    const edges: { from: number; to: number; weight: number }[] = [];
-    
-    // Generate all possible edges
-    for (let i = 0; i < dots.length; i++) {
-      for (let j = i + 1; j < dots.length; j++) {
-        edges.push({
-          from: i,
-          to: j,
-          weight: calculateDistance(dots[i], dots[j])
-        });
-      }
-    }
-    
-    // Sort edges by weight
-    edges.sort((a, b) => a.weight - b.weight);
-    
-    // Union-Find data structure
-    const parent = Array.from({ length: dots.length }, (_, i) => i);
-    const rank = new Array(dots.length).fill(0);
-    
-    const find = (x: number): number => {
-      if (parent[x] !== x) {
-        parent[x] = find(parent[x]);
-      }
-      return parent[x];
-    };
-    
-    const union = (x: number, y: number): boolean => {
-      const rootX = find(x);
-      const rootY = find(y);
-      
-      if (rootX === rootY) return false;
-      
-      if (rank[rootX] < rank[rootY]) {
-        parent[rootX] = rootY;
-      } else if (rank[rootX] > rank[rootY]) {
-        parent[rootY] = rootX;
-      } else {
-        parent[rootY] = rootX;
-        rank[rootX]++;
-      }
-      
-      return true;
-    };
-    
-    let mstWeight = 0;
-    let edgeCount = 0;
-    
-    for (const edge of edges) {
-      if (union(edge.from, edge.to)) {
-        mstWeight += edge.weight;
-        edgeCount++;
-        if (edgeCount === dots.length - 1) break;
-      }
-    }
-    
-    return mstWeight;
-  };
-
-  const isTreeConnected = (dots: Dot[], connections: Connection[]): boolean => {
-    if (!connections || !Array.isArray(connections) || connections.length < dots.length - 1) return false;
-    if (!dots || !Array.isArray(dots) || dots.length === 0) return false;
-    
-    // Build adjacency list
-    const adj: number[][] = Array.from({ length: dots.length }, () => []);
-    connections.forEach(conn => {
-      if (conn && typeof conn.from === 'number' && typeof conn.to === 'number') {
-        adj[conn.from]?.push(conn.to);
-        adj[conn.to]?.push(conn.from);
-      }
-    });
-    
-    // DFS to check connectivity
-    const visited = new Array(dots.length).fill(false);
-    const dfs = (node: number) => {
-      if (visited[node]) return;
-      visited[node] = true;
-      if (adj[node] && Array.isArray(adj[node])) {
-        adj[node].forEach(neighbor => {
-          if (typeof neighbor === 'number' && !visited[neighbor]) {
-            dfs(neighbor);
+        for (let v = 0; v < n; v++) {
+          if (mask & (1 << v)) continue;
+          const newMask = mask | (1 << v);
+          const newDist = val + d[u][v];
+          if (newDist < dp[newMask][v]) {
+            dp[newMask][v] = newDist;
+            parent[newMask][v] = u;
           }
-        });
+        }
       }
-    };
+    }
     
-    dfs(0);
-    return visited.every(v => v);
+    // Find best last node
+    let bestLen = Infinity;
+    let lastNode = -1;
+    for (let u = 0; u < n; u++) {
+      const total = dp[FULL][u] + d[u][0];
+      if (total < bestLen) {
+        bestLen = total;
+        lastNode = u;
+      }
+    }
+    
+    // Reconstruct
+    const route: number[] = [];
+    let mask = FULL;
+    let curr = lastNode;
+    while (curr !== -1 && curr !== 0) {
+      route.push(curr);
+      const prev = parent[mask][curr];
+      mask ^= (1 << curr);
+      curr = prev;
+    }
+    route.push(0);
+    route.reverse();
+    
+    return { length: bestLen, route };
   };
 
   const startGame = () => {
-    const newDots = generateDots();
-    setDots(newDots);
-    setConnections([]);
-    setSelectedDot(null);
+    const newNodes = generateNodes();
+    setNodes(newNodes);
+    setRoute([]);
     setGameState('playing');
     setElapsedTime(0);
     setScore(0);
-    setIsConnected(false);
     
-    const optimal = calculateMST(newDots);
-    setOptimalLength(optimal);
+    const optimal = solveTSPExact(newNodes);
+    setOptimalLength(optimal.length);
+    setOptimalRoute(optimal.route);
     
     startTimeRef.current = Date.now();
-    
     elapsedTimer.current = setInterval(() => {
       setElapsedTime(Math.floor((Date.now() - startTimeRef.current) / 1000));
-    }, 1000);
+    }, 1000) as any;
   };
 
-  const endGame = async () => {
-    setGameState('finished');
-    if (elapsedTimer.current) clearInterval(elapsedTimer.current);
-  };
-
-  const handleDotPress = (dotId: number) => {
+  const handleNodePress = (nodeId: number) => {
     if (gameState !== 'playing') return;
     
-    if (selectedDot === null) {
-      setSelectedDot(dotId);
-    } else if (selectedDot === dotId) {
-      setSelectedDot(null);
-    } else {
-      // Check if connection already exists
-      const existingConnection = connections.find(conn => 
-        (conn.from === selectedDot && conn.to === dotId) ||
-        (conn.from === dotId && conn.to === selectedDot)
-      );
-      
-      if (existingConnection) {
-        // Remove connection
-        setConnections(connections.filter(conn => conn !== existingConnection));
-      } else {
-        // Add connection
-        const distance = calculateDistance(dots[selectedDot], dots[dotId]);
-        setConnections([...connections, {
-          from: selectedDot,
-          to: dotId,
-          length: distance
-        }]);
-      }
-      
-      setSelectedDot(null);
+    // If tapping the start node after visiting all others → finish
+    if (route.length === nodes.length && nodeId === route[0]) {
+      handleSubmit();
+      return;
     }
+    
+    // If tapping a visited node → undo from that point
+    const idx = route.indexOf(nodeId);
+    if (idx !== -1) {
+      setRoute(route.slice(0, idx));
+      return;
+    }
+    
+    setRoute([...route, nodeId]);
   };
 
   const handleSubmit = async () => {
-    if (!isConnected) return;
+    if (route.length !== nodes.length) return;
     
     const completionTime = Math.floor((Date.now() - startTimeRef.current) / 1000);
-    const userLength = connections.reduce((sum, conn) => sum + conn.length, 0);
-    const efficiencyPercent = optimalLength > 0 ? (optimalLength / userLength) * 100 : 0;
-    let finalScore = Math.round((efficiencyPercent - 90) * 10);
+    const userLength = calcRouteLength(nodes, route);
+    const efficiency = optimalLength > 0 ? (optimalLength / userLength) * 100 : 0;
+    let finalScore = Math.max(0, Math.round(efficiency));
     
     setScore(finalScore);
     setElapsedTime(completionTime);
     
     try {
       const accuracyDecimal = optimalLength > 0 ? Math.min(1, optimalLength / userLength) : 0;
-      const accuracy = accuracyDecimal * 100;
-      const speed = completionTime;
-      
       const rawData = {
-        userLength,
-        optimalLength,
-        connections: connections.length,
-        efficiency: efficiencyPercent,
-        completionTime,
-        accuracy: accuracyDecimal,
-        speed
+        userLength, optimalLength, routeOrder: route,
+        nodeCount: nodes.length, efficiency, completionTime,
+        accuracy: accuracyDecimal, speed: completionTime,
       };
       
       const studyId = scheduledTest ? studyContext?.study_protocol_id : undefined;
       const supplementLogId = scheduledTest ? studyContext?.supplement_log_id : undefined;
-      
-      await saveCognitiveTestResult('judgment', finalScore, rawData, completionTime, studyId, supplementLogId, accuracy, speed);
-      
-      if (scheduledTest) {
-        await completeScheduledTest(scheduledTest.id);
-      }
+      await saveCognitiveTestResult('judgment', finalScore, rawData, completionTime, studyId, supplementLogId, accuracyDecimal * 100, completionTime);
+      if (scheduledTest) await completeScheduledTest(scheduledTest.id);
     } catch (error) {
-      console.error('Failed to save judgment test result:', error);
+      console.error('Failed to save test result:', error);
     }
     
-    endGame();
+    setGameState('finished');
+    if (elapsedTimer.current) clearInterval(elapsedTimer.current);
   };
 
   const handleBackToMenu = () => {
@@ -298,479 +248,251 @@ export default function ConnectionsTestScreen() {
 
   const handleExitTest = () => {
     if (gameState === 'playing') {
-      Alert.alert(
-        'Exit Test?',
-        'Your progress will not be saved. Are you sure you want to exit?',
-        [
-          {
-            text: 'No',
-            style: 'cancel',
-          },
-          {
-            text: 'Yes',
-            style: 'destructive',
-            onPress: () => {
-              if (elapsedTimer.current) clearInterval(elapsedTimer.current);
-              
-              if (params.sequence === 'all-nine') {
-                router.push('/tests/all-nine');
-              } else {
-                router.push('/cognitive-tests');
-              }
-            },
-          },
-        ]
-      );
+      Alert.alert('Exit Test?', 'Your progress will not be saved.', [
+        { text: 'No', style: 'cancel' },
+        { text: 'Yes', style: 'destructive', onPress: () => {
+          if (elapsedTimer.current) clearInterval(elapsedTimer.current);
+          router.push(params.sequence === 'all-nine' ? '/tests/all-nine' : '/cognitive-tests');
+        }},
+      ]);
     } else {
-      if (params.sequence === 'all-nine') {
-        router.push('/tests/all-nine');
-      } else {
-        router.push('/cognitive-tests');
-      }
+      router.push(params.sequence === 'all-nine' ? '/tests/all-nine' : '/cognitive-tests');
     }
   };
 
   const handleNextTestOrFinish = () => {
-    if (params.sequence === 'all-nine') {
-      router.push('/tests/rock-dodger?sequence=all-nine');
-    } else {
-      router.push('/cognitive-tests');
-    }
-  };
-
-  const handlePlayAgain = () => {
-    startGame();
+    router.push(params.sequence === 'all-nine' ? '/tests/rock-dodger?sequence=all-nine' : '/cognitive-tests');
   };
 
   useEffect(() => {
-    const connected = isTreeConnected(dots, connections);
-    setIsConnected(connected);
-  }, [connections, dots]);
-
-  useEffect(() => {
-    // Check for relevant scheduled test on component mount
-    const checkScheduledTest = async () => {
+    const check = async () => {
       try {
-        const relevantTest = await getRelevantScheduledTest('judgment');
-        if (relevantTest) {
-          setScheduledTest(relevantTest);
-          const context = await getTestContext(relevantTest.id);
-          setStudyContext(context);
-        }
-      } catch (error) {
-        console.error('Failed to check for scheduled test:', error);
-      }
+        const t = await getRelevantScheduledTest('judgment');
+        if (t) { setScheduledTest(t); setStudyContext(await getTestContext(t.id)); }
+      } catch (e) { console.error(e); }
     };
-    
-    checkScheduledTest();
-    
-    return () => {
-      if (elapsedTimer.current) clearInterval(elapsedTimer.current);
-    };
+    check();
+    return () => { if (elapsedTimer.current) clearInterval(elapsedTimer.current); };
   }, []);
 
+  // === READY ===
   if (gameState === 'ready') {
     return (
       <ThemedView style={styles.container} safeArea>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <ThemedView style={styles.instructionsContainer}>
-          {params.sequence === 'all-nine' && (
-            <ThemedView style={[styles.progressBanner, { backgroundColor: tintColor + '15', borderColor: tintColor }]}>
-              <ThemedText style={[styles.progressText, { color: tintColor }]}>
-                Test 4 of 9
-              </ThemedText>
-            </ThemedView>
-          )}
-          <ThemedText type="title" style={styles.title}>Connections Test</ThemedText>
-          {scheduledTest && studyContext?.supplement_name && (
-            <ThemedView style={[styles.studyBanner, { backgroundColor: tintColor + '20', borderColor: tintColor }]}>
-              <ThemedText style={[styles.studyText, { color: tintColor }]}>
-                📊 Study Test for {studyContext.supplement_name}
-              </ThemedText>
-            </ThemedView>
-          )}
-          <ThemedText style={styles.instructions}>
-            Connect all dots into shortest tree (no loops!){'\n\n'}
-            Tap two dots to connect/disconnect{'\n'}
-            Keep lines short - efficiency matters{'\n'}
-            Avoid loops - they waste distance{'\n'}
-          </ThemedText>
-          
-          <ThemedView style={styles.exampleContainer}>
-            <ThemedView style={styles.exampleRow}>
-              <ThemedView style={styles.exampleColumn}>
-                <ThemedText style={styles.exampleLabel}>Good Tree</ThemedText>
-                <ThemedText style={styles.exampleSubLabel}>Short Lines</ThemedText>
-                <ThemedText style={styles.exampleSubLabel}>No Loops</ThemedText>
-                <Svg width={100} height={60} style={styles.exampleSvg}>
-                  <Circle cx={25} cy={15} r={4} fill={tintColor} stroke="white" strokeWidth="1" />
-                  <Circle cx={45} cy={10} r={4} fill={tintColor} stroke="white" strokeWidth="1" />
-                  <Circle cx={35} cy={25} r={4} fill={tintColor} stroke="white" strokeWidth="1" />
-                  <Circle cx={55} cy={30} r={4} fill={tintColor} stroke="white" strokeWidth="1" />
-                  <Circle cx={20} cy={40} r={4} fill={tintColor} stroke="white" strokeWidth="1" />
-                  <Circle cx={70} cy={45} r={4} fill={tintColor} stroke="white" strokeWidth="1" />
-                  
-                  <Line x1={25} y1={15} x2={45} y2={10} stroke={tintColor} strokeWidth="2" />
-                  <Line x1={25} y1={15} x2={35} y2={25} stroke={tintColor} strokeWidth="2" />
-                  <Line x1={35} y1={25} x2={55} y2={30} stroke={tintColor} strokeWidth="2" />
-                  <Line x1={35} y1={25} x2={20} y2={40} stroke={tintColor} strokeWidth="2" />
-                  <Line x1={55} y1={30} x2={70} y2={45} stroke={tintColor} strokeWidth="2" />
-                </Svg>
-              </ThemedView>
-              
-              <ThemedView style={styles.exampleColumn}>
-                <ThemedText style={styles.exampleLabel}>Bad Tree</ThemedText>
-                <ThemedText style={styles.exampleSubLabel}>Long Lines + Loop</ThemedText>
-                <ThemedText style={styles.exampleSubLabel}>Wastes Distance</ThemedText>
-                <Svg width={100} height={60} style={styles.exampleSvg}>
-                  <Circle cx={20} cy={10} r={4} fill={tintColor} stroke="white" strokeWidth="1" />
-                  <Circle cx={70} cy={15} r={4} fill={tintColor} stroke="white" strokeWidth="1" />
-                  <Circle cx={35} cy={25} r={4} fill={tintColor} stroke="white" strokeWidth="1" />
-                  <Circle cx={60} cy={40} r={4} fill={tintColor} stroke="white" strokeWidth="1" />
-                  <Circle cx={15} cy={50} r={4} fill={tintColor} stroke="white" strokeWidth="1" />
-                  <Circle cx={80} cy={50} r={4} fill={tintColor} stroke="white" strokeWidth="1" />
-                  
-                  <Line x1={20} y1={10} x2={70} y2={15} stroke="#FF6B6B" strokeWidth="2" />
-                  <Line x1={70} y1={15} x2={60} y2={40} stroke="#FF6B6B" strokeWidth="2" />
-                  <Line x1={60} y1={40} x2={35} y2={25} stroke="#FF6B6B" strokeWidth="2" />
-                  <Line x1={35} y1={25} x2={20} y2={10} stroke="#FF6B6B" strokeWidth="2" />
-                  <Line x1={15} y1={50} x2={20} y2={10} stroke="#FF6B6B" strokeWidth="2" />
-                  <Line x1={80} y1={50} x2={60} y2={40} stroke="#FF6B6B" strokeWidth="2" />
-                </Svg>
-              </ThemedView>
-            </ThemedView>
-          </ThemedView>
-          <TouchableOpacity 
-            style={[styles.startButton, { backgroundColor: tintColor }]} 
-            onPress={startGame}
-          >
-            <ThemedText style={styles.startButtonText}>Start Test</ThemedText>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
-            <ThemedText style={styles.backButtonText}>Back to Menu</ThemedText>
-          </TouchableOpacity>
-        </ThemedView>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.centered}>
+            {params.sequence === 'all-nine' && (
+              <View style={[styles.banner, { backgroundColor: tintColor + '15', borderColor: tintColor }]}>
+                <ThemedText style={[styles.bannerText, { color: tintColor }]}>Test 4 of 9</ThemedText>
+              </View>
+            )}
+            <ThemedText type="title" style={styles.title}>Route Planner</ThemedText>
+            {scheduledTest && studyContext?.supplement_name && (
+              <View style={[styles.banner, { backgroundColor: tintColor + '20', borderColor: tintColor }]}>
+                <ThemedText style={[styles.bannerText, { color: tintColor }]}>📊 Study: {studyContext.supplement_name}</ThemedText>
+              </View>
+            )}
+            <ThemedText style={styles.instructions}>
+              Find the shortest route through all {NODE_COUNT} nodes.{'\n\n'}
+              Tap nodes to build your route.{'\n'}
+              Tap the start node to complete the loop.{'\n'}
+              Tap any visited node to undo.
+            </ThemedText>
+            <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: tintColor }]} onPress={startGame} accessibilityRole="button" accessibilityLabel="Start route planner test" testID="btn-connections-start">
+              <ThemedText style={styles.primaryBtnText}>Start</ThemedText>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.secondaryBtn} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Back to menu" testID="btn-connections-back">
+              <ThemedText style={styles.secondaryBtnText}>Back</ThemedText>
+            </TouchableOpacity>
+          </View>
         </ScrollView>
       </ThemedView>
     );
   }
 
+  // === FINISHED ===
   if (gameState === 'finished') {
-    const userLength = connections.reduce((sum, conn) => sum + conn.length, 0);
+    const userLength = calcRouteLength(nodes, route);
     const efficiency = optimalLength > 0 ? ((optimalLength / userLength) * 100).toFixed(1) : '0';
+    
+    const previewW = screenWidth - 60;
+    const previewH = 300;
+    const scaleNode = (n: Node) => ({
+      x: ((n.x - playLeft) / playWidth) * previewW,
+      y: ((n.y - playTop) / playHeight) * previewH,
+    });
     
     return (
       <ThemedView style={styles.container} safeArea>
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
-          <ThemedView style={styles.resultsContainer}>
-          <ThemedText type="title" style={styles.title}>Test Complete!</ThemedText>
-          <ThemedText style={styles.finalScore}>Final Score: {score}</ThemedText>
-          <ThemedText style={styles.stats}>
-            Accuracy: {efficiency}% | Speed: {elapsedTime}s{'\n'}
-            Your length: {userLength.toFixed(1)}{'\n'}
-            Optimal length: {optimalLength.toFixed(1)}
-          </ThemedText>
-          <ThemedText style={styles.resultMessage}>
-            {score >= 95 ? 'Excellent spatial reasoning!' : 
-             score >= 85 ? 'Good optimization!' : 
-             score >= 70 ? 'Not bad!' : 'Keep practicing!'}
-          </ThemedText>
-          {params.sequence === 'all-nine' ? (
-            <>
-              <TouchableOpacity 
-                style={[styles.startButton, { backgroundColor: tintColor }]} 
-                onPress={handleNextTestOrFinish}
-              >
-                <ThemedText style={styles.startButtonText}>Next Test</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.backButton} onPress={handleExitTest}>
-                <ThemedText style={styles.backButtonText}>Exit Test Battery</ThemedText>
-              </TouchableOpacity>
-            </>
-          ) : (
-            <>
-              <TouchableOpacity 
-                style={[styles.startButton, { backgroundColor: tintColor }]} 
-                onPress={handlePlayAgain}
-              >
-                <ThemedText style={styles.startButtonText}>Play Again</ThemedText>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
-                <ThemedText style={styles.backButtonText}>Back to Menu</ThemedText>
-              </TouchableOpacity>
-            </>
-          )}
-        </ThemedView>
+        <ScrollView contentContainerStyle={styles.scrollContent}>
+          <View style={styles.centered}>
+            <ThemedText type="title" style={styles.title}>Route Complete</ThemedText>
+            <ThemedText style={styles.bigStat}>{efficiency}%</ThemedText>
+            <ThemedText style={styles.statLabel}>efficiency</ThemedText>
+            <ThemedText style={styles.subStats}>
+              You: {userLength.toFixed(0)}  •  Optimal: {optimalLength.toFixed(0)}  •  {elapsedTime}s
+            </ThemedText>
+            
+            <View style={[styles.previewBox, { width: previewW, height: previewH }]}>  
+              <Svg width={previewW} height={previewH}>
+                {/* User route first (underneath) */}
+                {route.map((id, i) => {
+                  const a = scaleNode(nodes[id]);
+                  const b = scaleNode(nodes[route[(i + 1) % route.length]]);
+                  return <Line key={`u${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={tintColor} strokeWidth="2" />;
+                })}
+                {/* Optimal route on top */}
+                {optimalRoute.map((id, i) => {
+                  const a = scaleNode(nodes[id]);
+                  const b = scaleNode(nodes[optimalRoute[(i + 1) % optimalRoute.length]]);
+                  return <Line key={`o${i}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke="#4CAF50" strokeWidth="2" strokeDasharray="5,4" opacity={0.7} />;
+                })}
+                {nodes.map(n => {
+                  const p = scaleNode(n);
+                  return <Circle key={n.id} cx={p.x} cy={p.y} r={5} fill={tintColor} />;
+                })}
+              </Svg>
+            </View>
+            <View style={styles.legendRow}>
+              <View style={styles.legendItem}><View style={[styles.legendLine, { backgroundColor: tintColor }]} /><ThemedText style={styles.legendText}>Yours</ThemedText></View>
+              <View style={styles.legendItem}><View style={[styles.legendLine, { backgroundColor: '#4CAF50' }]} /><ThemedText style={styles.legendText}>Optimal</ThemedText></View>
+            </View>
+
+            <ThemedText style={styles.resultMsg}>
+              {Number(efficiency) >= 98 ? 'Virtually optimal.' :
+               Number(efficiency) >= 90 ? 'Excellent routing.' :
+               Number(efficiency) >= 80 ? 'Good effort.' : 'Keep practicing.'}
+            </ThemedText>
+
+            {params.sequence === 'all-nine' ? (
+              <>
+                <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: tintColor }]} onPress={handleNextTestOrFinish} accessibilityRole="button" accessibilityLabel="Next test" testID="btn-connections-next">
+                  <ThemedText style={styles.primaryBtnText}>Next Test →</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={handleExitTest} accessibilityRole="button" accessibilityLabel="Exit sequence" testID="btn-connections-exit">
+                  <ThemedText style={styles.secondaryBtnText}>Exit Sequence</ThemedText>
+                </TouchableOpacity>
+              </>
+            ) : (
+              <>
+                <TouchableOpacity style={[styles.primaryBtn, { backgroundColor: tintColor }]} onPress={startGame} accessibilityRole="button" accessibilityLabel="Play again" testID="btn-connections-play-again">
+                  <ThemedText style={styles.primaryBtnText}>Play Again</ThemedText>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.secondaryBtn} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Back to menu" testID="btn-connections-back-menu">
+                  <ThemedText style={styles.secondaryBtnText}>Back</ThemedText>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
         </ScrollView>
       </ThemedView>
     );
   }
 
+  // === PLAYING — pure dots and lines ===
+  const allVisited = route.length === nodes.length;
+
   return (
-    <GestureHandlerRootView style={styles.gameContainer}>
-      <ThemedView style={[styles.infoBanner, { borderColor: tintColor }]}>
-        <TouchableOpacity
-          style={styles.bannerBackButton}
-          onPress={handleExitTest}
-          hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-        >
-          <Ionicons name="arrow-back" size={20} color={tintColor} />
-        </TouchableOpacity>
-        <View style={styles.bannerStats}>
-          <ThemedText style={styles.bannerStatText}>Time: {elapsedTime}s</ThemedText>
-          <ThemedText style={styles.bannerStatText}>
-            {isConnected ? 'Tree Complete ✓' : 'Tree Incomplete'}
-          </ThemedText>
+    <GestureHandlerRootView style={{ flex: 1 }}>
+      <ThemedView style={styles.container} safeArea>
+        {/* Thin top bar — timer and count only */}
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={handleExitTest} hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }} accessibilityRole="button" accessibilityLabel="Exit test" testID="btn-connections-exit-playing">
+            <Ionicons name="close" size={22} color={textColor} />
+          </TouchableOpacity>
+          <ThemedText style={styles.topText}>{(() => {
+            if (route.length < 2) return '0';
+            let d = 0;
+            for (let i = 0; i < route.length - 1; i++) d += dist(nodes[route[i]], nodes[route[i + 1]]);
+            if (route.length === nodes.length) d += dist(nodes[route[route.length - 1]], nodes[route[0]]);
+            return Math.round(d);
+          })()}</ThemedText>
+          <ThemedText style={styles.topText}>{elapsedTime}s</ThemedText>
+        </View>
+
+        {/* Play field — just dots and lines, nothing else */}
+        <View style={{ flex: 1 }}>
+          <Svg width={screenWidth} height={playHeight} style={StyleSheet.absoluteFill}>
+            {route.map((id, i) => {
+              if (i === 0) return null;
+              const a = nodes[route[i - 1]];
+              const b = nodes[id];
+              return (
+                <Line key={`r${i}`}
+                  x1={a.x} y1={a.y - playTop}
+                  x2={b.x} y2={b.y - playTop}
+                  stroke={tintColor} strokeWidth="2"
+                />
+              );
+            })}
+            {/* Show return line when all visited — solid, same as rest */}
+            {allVisited && route.length >= 2 && (
+              <Line
+                x1={nodes[route[route.length - 1]].x} y1={nodes[route[route.length - 1]].y - playTop}
+                x2={nodes[route[0]].x} y2={nodes[route[0]].y - playTop}
+                stroke={tintColor} strokeWidth="2"
+              />
+            )}
+          </Svg>
+
+          {nodes.map(node => {
+            const visitIdx = route.indexOf(node.id);
+            const isVisited = visitIdx !== -1;
+            const isStart = visitIdx === 0;
+            return (
+              <TouchableOpacity
+                key={node.id}
+                onPress={() => handleNodePress(node.id)}
+                hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Node ${node.id + 1}`}
+                testID={`btn-connections-node-${node.id}`}
+                style={[
+                  styles.node,
+                  {
+                    left: node.x - NODE_RADIUS,
+                    top: node.y - playTop - NODE_RADIUS,
+                    width: NODE_RADIUS * 2,
+                    height: NODE_RADIUS * 2,
+                    borderRadius: NODE_RADIUS,
+                    backgroundColor: isVisited ? tintColor : '#8E8E93',
+                    borderWidth: 1.5,
+                    borderColor: 'white',
+                  },
+                ]}
+              />
+            );
+          })}
         </View>
       </ThemedView>
-      
-      <View style={styles.gameArea}>
-        <Svg width={screenWidth} height={screenHeight - (insets.top + 80) - (insets.bottom + 100)} style={styles.svg}>
-          {connections.map((connection, index) => (
-            <Line
-              key={index}
-              x1={dots[connection.from]?.x || 0}
-              y1={(dots[connection.from]?.y || 0) - (insets.top + 80)}
-              x2={dots[connection.to]?.x || 0}
-              y2={(dots[connection.to]?.y || 0) - (insets.top + 80)}
-              stroke={tintColor}
-              strokeWidth="2"
-            />
-          ))}
-          
-          {dots.map((dot) => (
-            <Circle
-              key={dot.id}
-              cx={dot.x}
-              cy={dot.y - (insets.top + 80)}
-              r={DOT_SIZE / 2}
-              fill={selectedDot === dot.id ? '#FF6B6B' : tintColor}
-              stroke="white"
-              strokeWidth="2"
-            />
-          ))}
-        </Svg>
-        
-        {dots.map((dot) => (
-          <TouchableOpacity
-            key={dot.id}
-            style={[
-              styles.dotTouchArea,
-              {
-                left: dot.x - DOT_SIZE,
-                top: dot.y - DOT_SIZE - (insets.top + 80),
-              }
-            ]}
-            onPress={() => handleDotPress(dot.id)}
-          />
-        ))}
-      </View>
-      
-      {isConnected && (
-        <TouchableOpacity 
-          style={[styles.submitButton, { backgroundColor: tintColor, marginBottom: insets.bottom + 20 }]} 
-          onPress={handleSubmit}
-        >
-          <ThemedText style={styles.submitButtonText}>Submit Solution</ThemedText>
-        </TouchableOpacity>
-      )}
     </GestureHandlerRootView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  scrollContent: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    padding: 15,
-    paddingVertical: 10,
-  },
-  instructionsContainer: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 20,
-  },
-  resultsContainer: {
-    alignItems: 'center',
-    justifyContent: 'flex-start',
-    paddingTop: 80,
-    paddingBottom: 60,
-    paddingHorizontal: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 20,
-    textAlign: 'center',
-  },
-  instructions: {
-    fontSize: 15,
-    textAlign: 'center',
-    marginBottom: 25,
-    lineHeight: 22,
-  },
-  startButton: {
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    marginBottom: 20,
-    minHeight: 48,
-    minWidth: '70%',
-    alignItems: 'center',
-  },
-  startButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  backButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    minHeight: 44,
-    alignItems: 'center',
-  },
-  backButtonText: {
-    fontSize: 16,
-    opacity: 0.7,
-  },
-  gameContainer: {
-    flex: 1,
-    paddingTop: 60,
-  },
-  infoBanner: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 20,
-    marginBottom: 10,
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.03)',
-  },
-  bannerBackButton: {
-    padding: 4,
-    marginRight: 12,
-  },
-  bannerStats: {
-    flex: 1,
-    flexDirection: 'row',
-    justifyContent: 'space-around',
-  },
-  bannerStatText: {
-    fontSize: 14,
-    fontWeight: '600',
-  },
-  progressBanner: {
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 15,
-    alignItems: 'center',
-  },
-  progressText: {
-    fontSize: 14,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  timer: {
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  connectionStatus: {
-    fontSize: 16,
-    fontWeight: '600',
-  },
-  gameArea: {
-    flex: 1,
-    position: 'relative',
-  },
-  svg: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-  },
-  dotTouchArea: {
-    position: 'absolute',
-    width: DOT_SIZE * 2,
-    height: DOT_SIZE * 2,
-  },
-  submitButton: {
-    margin: 20,
-    paddingVertical: 16,
-    paddingHorizontal: 32,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  submitButtonText: {
-    color: 'white',
-    fontSize: 18,
-    fontWeight: '600',
-  },
-  finalScore: {
-    fontSize: 32,
-    fontWeight: 'bold',
-    marginBottom: 20,
-  },
-  stats: {
-    fontSize: 16,
-    textAlign: 'center',
-    marginBottom: 20,
-    opacity: 0.8,
-    lineHeight: 24,
-  },
-  resultMessage: {
-    fontSize: 18,
-    textAlign: 'center',
-    marginBottom: 40,
-    opacity: 0.8,
-  },
-  studyBanner: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    borderRadius: 8,
-    borderWidth: 1,
-    marginBottom: 20,
-    alignItems: 'center',
-  },
-  studyText: {
-    fontSize: 16,
-    fontWeight: '600',
-    textAlign: 'center',
-  },
-  exampleContainer: {
-    marginVertical: 15,
-    paddingHorizontal: 10,
-    alignItems: 'center',
-  },
-  exampleRow: {
-    flexDirection: 'row',
-    gap: 15,
-    justifyContent: 'space-around',
-    width: '100%',
-  },
-  exampleColumn: {
-    flex: 1,
-    alignItems: 'center',
-  },
-  exampleLabel: {
-    fontSize: 14,
-    marginBottom: 4,
-    textAlign: 'center',
-    fontWeight: '600',
-  },
-  exampleSubLabel: {
-    fontSize: 11,
-    marginBottom: 2,
-    textAlign: 'center',
-    opacity: 0.8,
-  },
-  exampleSvg: {
-    borderRadius: 8,
-    backgroundColor: 'rgba(0,0,0,0.05)',
-  },
+  container: { flex: 1 },
+  scrollContent: { flexGrow: 1, padding: 20, paddingTop: 40 },
+  centered: { alignItems: 'center', paddingTop: 20 },
+  title: { fontSize: 28, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' },
+  instructions: { fontSize: 16, lineHeight: 24, textAlign: 'center', marginBottom: 24, opacity: 0.8 },
+  banner: { paddingHorizontal: 16, paddingVertical: 8, borderRadius: 20, borderWidth: 1, marginBottom: 16 },
+  bannerText: { fontSize: 14, fontWeight: '600' },
+  primaryBtn: { paddingHorizontal: 48, paddingVertical: 14, borderRadius: 25, marginBottom: 12 },
+  primaryBtnText: { color: 'white', fontSize: 18, fontWeight: '600', textAlign: 'center' },
+  secondaryBtn: { paddingVertical: 10 },
+  secondaryBtnText: { fontSize: 16, opacity: 0.6, textAlign: 'center' },
+  // Playing
+  topBar: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 16, height: 44 },
+  topText: { fontSize: 15, fontWeight: '600', opacity: 0.7 },
+  node: { position: 'absolute', zIndex: 10 },
+  // Results
+  bigStat: { fontSize: 42, fontWeight: 'bold', marginTop: 12, marginBottom: 4 },
+  statLabel: { fontSize: 16, opacity: 0.6, marginBottom: 8 },
+  subStats: { fontSize: 14, opacity: 0.5, marginBottom: 20, textAlign: 'center' },
+  previewBox: { backgroundColor: 'rgba(128,128,128,0.05)', borderRadius: 12, marginBottom: 8 },
+  legendRow: { flexDirection: 'row', justifyContent: 'center', gap: 24, marginBottom: 16 },
+  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
+  legendLine: { width: 20, height: 3, borderRadius: 2 },
+  legendText: { fontSize: 13, opacity: 0.7 },
+  resultMsg: { fontSize: 18, fontWeight: '500', textAlign: 'center', marginBottom: 24 },
 });

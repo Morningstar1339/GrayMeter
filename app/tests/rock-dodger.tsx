@@ -418,7 +418,7 @@ export default function RockDodgerTestScreen() {
                 </ThemedText>
               </ThemedView>
             )}
-            <ThemedText type="title" style={styles.title}>Rock Dodger</ThemedText>
+            <ThemedText type="title" style={styles.title}>Coordination</ThemedText>
             {scheduledTest && studyContext?.supplement_name && (
               <ThemedView style={[styles.studyBanner, { backgroundColor: tintColor + '20', borderColor: tintColor }]}>
                 <ThemedText style={[styles.studyText, { color: tintColor }]}>
@@ -440,13 +440,16 @@ export default function RockDodgerTestScreen() {
               • Game ends when you hit a rock{'\n'}
               • Difficulty increases over time
             </ThemedText>
-            <TouchableOpacity 
-              style={[styles.startButton, { backgroundColor: tintColor }]} 
+            <TouchableOpacity
+              style={[styles.startButton, { backgroundColor: tintColor }]}
               onPress={startGame}
+              accessibilityRole="button"
+              accessibilityLabel="Start coordination test"
+              testID="btn-rockdodger-start"
             >
               <ThemedText style={styles.startButtonText}>Start Test</ThemedText>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+            <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Back to menu" testID="btn-rockdodger-back">
               <ThemedText style={styles.backButtonText}>Back to Menu</ThemedText>
             </TouchableOpacity>
           </ThemedView>
@@ -469,25 +472,31 @@ export default function RockDodgerTestScreen() {
             </ThemedText>
             {params.sequence === 'all-nine' ? (
               <>
-                <TouchableOpacity 
-                  style={[styles.startButton, { backgroundColor: tintColor }]} 
+                <TouchableOpacity
+                  style={[styles.startButton, { backgroundColor: tintColor }]}
                   onPress={handleNextTestOrFinish}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next test"
+                  testID="btn-rockdodger-next"
                 >
                   <ThemedText style={styles.startButtonText}>Next Test</ThemedText>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+                <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Exit test battery" testID="btn-rockdodger-exit-battery">
                   <ThemedText style={styles.backButtonText}>Exit Test Battery</ThemedText>
                 </TouchableOpacity>
               </>
             ) : (
               <>
-                <TouchableOpacity 
-                  style={[styles.startButton, { backgroundColor: tintColor }]} 
+                <TouchableOpacity
+                  style={[styles.startButton, { backgroundColor: tintColor }]}
                   onPress={handlePlayAgain}
+                  accessibilityRole="button"
+                  accessibilityLabel="Play again"
+                  testID="btn-rockdodger-play-again"
                 >
                   <ThemedText style={styles.startButtonText}>Play Again</ThemedText>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+                <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Back to menu" testID="btn-rockdodger-back-menu">
                   <ThemedText style={styles.backButtonText}>Back to Menu</ThemedText>
                 </TouchableOpacity>
               </>
@@ -506,6 +515,9 @@ export default function RockDodgerTestScreen() {
             style={styles.bannerBackButton}
             onPress={handleAbortTest}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Exit test"
+            testID="btn-rockdodger-exit-playing"
           >
             <Ionicons name="arrow-back" size={20} color={tintColor} />
           </TouchableOpacity>

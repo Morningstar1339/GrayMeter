@@ -24,12 +24,12 @@ export default function AllTestsScreen() {
     { id: 'questionnaire', name: 'Mood', icon: 'happy-outline', duration: '10s' },
     { id: 'reflexes', name: 'Reflexes', icon: 'flash-outline', duration: '10s' },
     { id: 'memory', name: 'Memory', icon: 'grid-outline', duration: '1m' },
-    { id: 'connections', name: 'Connections', icon: 'git-network-outline', duration: '30s' },
-    { id: 'rock-dodger', name: 'Rock Dodger', icon: 'shield-outline', duration: '30s' },
+    { id: 'connections', name: 'Route Planner', icon: 'git-network-outline', duration: '30s' },
+    { id: 'rock-dodger', name: 'Coordination', icon: 'shield-outline', duration: '30s' },
     { id: 'pattern-matcher', name: 'Pattern', icon: 'shapes-outline', duration: '30s' },
-    { id: 'tile-puzzle', name: '8-Tile', icon: 'apps-outline', duration: '30s' },
+    { id: 'tile-puzzle', name: 'Planning', icon: 'apps-outline', duration: '30s' },
     { id: 'n-back', name: 'N-Back', icon: 'layers-outline', duration: '1m' },
-    { id: 'stroop', name: 'Stroop', icon: 'color-palette-outline', duration: '30s' },
+    { id: 'stroop', name: 'Coherence', icon: 'color-palette-outline', duration: '30s' },
   ];
 
   return (
@@ -40,6 +40,9 @@ export default function AllTestsScreen() {
             style={styles.bannerBackButton}
             onPress={handleBackToMenu}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Back to menu"
+            testID="btn-all-nine-back"
           >
             <Ionicons name="arrow-back" size={20} color={tintColor} />
           </TouchableOpacity>
@@ -61,14 +64,17 @@ export default function AllTestsScreen() {
             ))}
           </View>
 
-          <TouchableOpacity 
-            style={[styles.startButton, { backgroundColor: tintColor }]} 
+          <TouchableOpacity
+            style={[styles.startButton, { backgroundColor: tintColor }]}
             onPress={handleStartSequence}
+            accessibilityRole="button"
+            accessibilityLabel="Start full test battery"
+            testID="btn-all-nine-start"
           >
             <ThemedText style={styles.startButtonText}>Start Full Test Battery</ThemedText>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Back to menu" testID="btn-all-nine-back-menu">
             <ThemedText style={styles.backButtonText}>Back to Menu</ThemedText>
           </TouchableOpacity>
         </ThemedView>

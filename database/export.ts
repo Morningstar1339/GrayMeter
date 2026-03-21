@@ -258,14 +258,14 @@ export const exportSchedules = async (): Promise<string> => {
       s.name as supplement_name,
       sch.supplement_id,
       sch.time,
-      sch.repeat_interval,
+      sch.days,
       sch.enabled
     FROM schedules sch
     JOIN supplements s ON sch.supplement_id = s.id
     ORDER BY s.name, sch.time
   `);
   
-  const headers = ['id', 'supplement_name', 'supplement_id', 'time', 'repeat_interval', 'enabled'];
+  const headers = ['id', 'supplement_name', 'supplement_id', 'time', 'days', 'enabled'];
   return arrayToCsv(schedules, headers);
 };
 
@@ -394,24 +394,24 @@ export const exportStudyProtocols = async (): Promise<string> => {
 
 // Export all data as a combined package
 export const exportAllData = async (options?: ExportOptions): Promise<{[key: string]: string}> => {
-  const exports: {[key: string]: string} = {};
+  const result: {[key: string]: string} = {};
   
   // Always export reference tables regardless of date range
-  exports.supplements = await exportSupplements();
-  exports.symptoms = await exportSymptoms();
-  exports.schedules = await exportSchedules();
-  exports.exclusions = await exportExclusions();
-  exports.study_protocols = await exportStudyProtocols();
+  result.supplements = await exportSupplements();
+  result.symptoms = await exportSymptoms();
+  result.schedules = await exportSchedules();
+  result.exclusions = await exportExclusions();
+  result.study_protocols = await exportStudyProtocols();
   
   // Export time-based data with optional date filtering
-  exports.supplement_logs = await exportSupplementLogs(options);
-  exports.symptom_logs = await exportSymptomLogs(options);
-  exports.cognitive_test_results = await exportCognitiveTestResults(options);
-  exports.sleep_logs = await exportSleepLogs(options);
-  exports.activity_logs = await exportActivityLogs(options);
-  exports.daily_reviews = await exportDailyReviews(options);
+  result.supplement_logs = await exportSupplementLogs(options);
+  result.symptom_logs = await exportSymptomLogs(options);
+  result.cognitive_test_results = await exportCognitiveTestResults(options);
+  result.sleep_logs = await exportSleepLogs(options);
+  result.activity_logs = await exportActivityLogs(options);
+  result.daily_reviews = await exportDailyReviews(options);
   
-  return exports;
+  return result;
 };
 
 // Get export statistics

@@ -42,7 +42,7 @@ export default function LogActivityScreen() {
     default_value: Number(params.default_value) || 0,
     unit: (params.unit as string) || 'unit',
     icon_id: (params.icon_id as string) || 'fitness',
-    color: (params.color as string) || '#007AFF'
+    color: (params.color as string) || '#00D4FF'
   }), [params.id, params.name, params.default_value, params.unit, params.icon_id, params.color]);
 
   const logActivityEntry = useCallback(async (customValue?: number, customTimestamp?: Date) => {
@@ -221,6 +221,9 @@ export default function LogActivityScreen() {
             style={[styles.confirmButton, { backgroundColor: tintColor }]}
             onPress={handleConfirmNow}
             disabled={isLogging}
+            accessibilityRole="button"
+            accessibilityLabel="Confirm activity log"
+            testID="btn-log-activity-confirm"
           >
             <ThemedText style={styles.confirmButtonText}>
               {isLogging ? 'Logging...' : 'Confirm'}
@@ -228,12 +231,12 @@ export default function LogActivityScreen() {
           </TouchableOpacity>
 
           <View style={styles.secondaryButtons}>
-            <TouchableOpacity style={styles.secondaryButton} onPress={handleEdit}>
+            <TouchableOpacity style={styles.secondaryButton} onPress={handleEdit} accessibilityRole="button" accessibilityLabel="Edit activity" testID="btn-log-activity-edit">
               <Ionicons name="pencil" size={20} color="#8E8E93" />
               <ThemedText style={styles.secondaryButtonText}>Edit</ThemedText>
             </TouchableOpacity>
 
-            <TouchableOpacity style={styles.secondaryButton} onPress={handleCancel}>
+            <TouchableOpacity style={styles.secondaryButton} onPress={handleCancel} accessibilityRole="button" accessibilityLabel="Cancel" testID="btn-log-activity-cancel">
               <Ionicons name="close" size={20} color="#8E8E93" />
               <ThemedText style={styles.secondaryButtonText}>Cancel</ThemedText>
             </TouchableOpacity>
@@ -254,11 +257,11 @@ export default function LogActivityScreen() {
           <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
             <ThemedView style={styles.modalContent}>
               <View style={styles.modalHeader}>
-              <TouchableOpacity onPress={() => setShowEditModal(false)}>
+              <TouchableOpacity onPress={() => setShowEditModal(false)} accessibilityRole="button" accessibilityLabel="Cancel edit" testID="btn-modal-cancel">
                 <ThemedText style={styles.modalHeaderCancel}>Cancel</ThemedText>
               </TouchableOpacity>
               <ThemedText style={styles.modalTitle}>Edit Entry</ThemedText>
-              <TouchableOpacity onPress={handleSaveEdit}>
+              <TouchableOpacity onPress={handleSaveEdit} accessibilityRole="button" accessibilityLabel="Save edit" testID="btn-modal-save">
                 <ThemedText style={[styles.modalHeaderSave, { color: tintColor }]}>Save</ThemedText>
               </TouchableOpacity>
             </View>
@@ -274,6 +277,8 @@ export default function LogActivityScreen() {
                     placeholder="0"
                     keyboardType="numeric"
                     placeholderTextColor="#999"
+                    accessibilityLabel="Activity value"
+                    testID="input-activity-value"
                   />
                   <ThemedText style={styles.valueUnit}>{activity?.unit || 'unit'}</ThemedText>
                 </View>
@@ -284,6 +289,9 @@ export default function LogActivityScreen() {
                 <TouchableOpacity
                   style={styles.timestampButton}
                   onPress={handleOpenDatePicker}
+                  accessibilityRole="button"
+                  accessibilityLabel="Select date and time"
+                  testID="btn-timestamp-picker"
                 >
                   <ThemedText style={styles.timestampText}>
                     {editTimestamp.toLocaleString()}
@@ -310,11 +318,11 @@ export default function LogActivityScreen() {
           <View style={styles.pickerModalOverlay}>
             <View style={styles.pickerModalContent}>
               <View style={styles.pickerHeader}>
-                <TouchableOpacity onPress={handleCancelDateTime}>
+                <TouchableOpacity onPress={handleCancelDateTime} accessibilityRole="button" accessibilityLabel="Cancel date picker" testID="btn-picker-cancel">
                   <ThemedText style={styles.pickerCancelText}>Cancel</ThemedText>
                 </TouchableOpacity>
                 <ThemedText style={styles.pickerTitle}>Select Date & Time</ThemedText>
-                <TouchableOpacity onPress={handleConfirmDateTime}>
+                <TouchableOpacity onPress={handleConfirmDateTime} accessibilityRole="button" accessibilityLabel="Confirm date and time" testID="btn-picker-done">
                   <ThemedText style={[styles.pickerDoneText, { color: tintColor }]}>Done</ThemedText>
                 </TouchableOpacity>
               </View>

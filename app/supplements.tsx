@@ -173,7 +173,7 @@ export default function SupplementsScreen() {
           default_dosage: supplement.default_dosage.toString(),
           dosage_unit: supplement.dosage_unit,
           icon_id: supplement.icon_id || 'medical',
-          color: supplement.color || '#007AFF',
+          color: supplement.color || '#00D4FF',
           schedule_enabled: supplement.schedule_enabled.toString(),
           study_enabled: supplement.study_enabled.toString(),
         },
@@ -203,9 +203,10 @@ export default function SupplementsScreen() {
           default_dosage: supplement.default_dosage.toString(),
           dosage_unit: supplement.dosage_unit,
           icon_id: supplement.icon_id || 'medical',
-          color: supplement.color || '#007AFF',
+          color: supplement.color || '#00D4FF',
           schedule_enabled: supplement.schedule_enabled.toString(),
           study_enabled: supplement.study_enabled.toString(),
+          substance_profile_id: supplement.substance_profile_id || '',
         },
       });
     },
@@ -222,7 +223,7 @@ export default function SupplementsScreen() {
       }
 
       // Default scheduling color
-      return supplement.schedule_enabled ? '#007AFF' : '#8E8E93';
+      return supplement.schedule_enabled ? '#00D4FF' : '#8E8E93';
     },
     [exclusionStatuses]
   );
@@ -234,13 +235,16 @@ export default function SupplementsScreen() {
 
   const renderSupplement = useCallback(
     ({ item: supplement }: { item: Supplement }) => {
-      const itemBackgroundColor = supplement.color || '#007AFF';
+      const itemBackgroundColor = supplement.color || '#00D4FF';
       const textColor = getContrastingTextColor(itemBackgroundColor);
 
       return (
         <TouchableOpacity
           style={[styles.supplementButton, { backgroundColor: itemBackgroundColor }]}
           onPress={() => handleSupplementPress(supplement)}
+          accessibilityRole="button"
+          accessibilityLabel={`Log ${supplement.name}`}
+          testID={`btn-supplement-${supplement.id}`}
         >
           <View style={styles.supplementContent}>
             <View style={styles.leftSection}>
@@ -282,6 +286,9 @@ export default function SupplementsScreen() {
                 style={styles.editButton}
                 onPress={(event) => handleEditSupplement(supplement, event)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Edit ${supplement.name}`}
+                testID={`btn-edit-supplement-${supplement.id}`}
               >
                 <Ionicons name="pencil-outline" size={16} color={textColor} />
               </TouchableOpacity>
@@ -295,7 +302,7 @@ export default function SupplementsScreen() {
 
   const renderAddButton = useCallback(
     () => (
-      <TouchableOpacity style={styles.addButton} onPress={handleAddSupplement}>
+      <TouchableOpacity style={styles.addButton} onPress={handleAddSupplement} accessibilityRole="button" accessibilityLabel="Add supplement" testID="btn-add-supplement">
         <Ionicons name="add" size={32} color={tintColor} />
         <ThemedText style={[styles.addButtonText, { color: tintColor }]}>Add Supplement</ThemedText>
       </TouchableOpacity>
@@ -312,6 +319,9 @@ export default function SupplementsScreen() {
       <TouchableOpacity
         style={styles.deleteAction}
         onPress={() => handleDeleteLog(item.id)}
+        accessibilityRole="button"
+        accessibilityLabel="Delete log entry"
+        testID={`btn-delete-supplement-log-${item.id}`}
       >
         <Ionicons name="trash-outline" size={24} color="white" />
       </TouchableOpacity>
@@ -320,7 +330,7 @@ export default function SupplementsScreen() {
     return (
       <Swipeable renderRightActions={renderRightActions}>
         <View style={styles.historyItem}>
-          <View style={[styles.historyIconContainer, { backgroundColor: item.color || '#007AFF' }]}>
+          <View style={[styles.historyIconContainer, { backgroundColor: item.color || '#00D4FF' }]}>
             <Ionicons name={(item.icon_id || 'medical') as any} size={20} color="white" />
           </View>
           <View style={styles.historyTextContainer}>
@@ -363,6 +373,9 @@ export default function SupplementsScreen() {
             style={styles.homeButton}
             onPress={handleHomePress}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Go home"
+            testID="btn-supplements-home"
           >
             <Ionicons name="home-outline" size={24} color={tintColor} />
           </TouchableOpacity>
@@ -376,6 +389,9 @@ export default function SupplementsScreen() {
           <TouchableOpacity
             style={[styles.toggleButton, viewMode === 'log' && { backgroundColor: tintColor }]}
             onPress={() => handleViewModeChange('log')}
+            accessibilityRole="button"
+            accessibilityLabel="Show log view"
+            testID="btn-supplements-log-tab"
           >
             <ThemedText style={[styles.toggleText, viewMode === 'log' && styles.toggleTextActive]}>
               Log
@@ -384,6 +400,9 @@ export default function SupplementsScreen() {
           <TouchableOpacity
             style={[styles.toggleButton, viewMode === 'history' && { backgroundColor: tintColor }]}
             onPress={() => handleViewModeChange('history')}
+            accessibilityRole="button"
+            accessibilityLabel="Show history view"
+            testID="btn-supplements-history-tab"
           >
             <ThemedText style={[styles.toggleText, viewMode === 'history' && styles.toggleTextActive]}>
               History

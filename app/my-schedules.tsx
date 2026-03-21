@@ -27,12 +27,12 @@ const TEST_TYPES = [
   { id: 'all', name: 'All Tests', icon: 'apps-outline' },
   { id: 'reflexes', name: 'Reflexes', icon: 'flash-outline' },
   { id: 'memory', name: 'Memory', icon: 'grid-outline' },
-  { id: 'connections', name: 'Connections', icon: 'git-network-outline' },
-  { id: 'rock-dodger', name: 'Rock Dodger', icon: 'shield-outline' },
+  { id: 'connections', name: 'Route Planner', icon: 'git-network-outline' },
+  { id: 'rock-dodger', name: 'Coordination', icon: 'shield-outline' },
   { id: 'questionnaire', name: 'Mood', icon: 'happy-outline' },
   { id: 'pattern-matcher', name: 'Pattern', icon: 'shapes-outline' },
-  { id: 'tile-puzzle', name: '8-Tile', icon: 'apps-outline' },
-  { id: 'stroop', name: 'Stroop', icon: 'color-palette-outline' },
+  { id: 'tile-puzzle', name: 'Planning', icon: 'apps-outline' },
+  { id: 'stroop', name: 'Coherence', icon: 'color-palette-outline' },
   { id: 'n-back', name: 'N-Back', icon: 'layers-outline' },
 ];
 
@@ -40,12 +40,12 @@ const TEST_TYPE_LABELS: Record<string, string> = {
   all: 'All Tests',
   reflexes: 'Reflexes',
   memory: 'Memory',
-  connections: 'Connections',
-  'rock-dodger': 'Rock Dodger',
+  connections: 'Route Planner',
+  'rock-dodger': 'Coordination',
   questionnaire: 'Mood',
-  'pattern-matcher': 'Pattern Matcher',
-  'tile-puzzle': '8-Tile Puzzle',
-  stroop: 'Stroop',
+  'pattern-matcher': 'Deduction',
+  'tile-puzzle': 'Planning',
+  stroop: 'Coherence',
   'n-back': 'N-Back',
 };
 
@@ -64,6 +64,11 @@ export default function MySchedulesScreen() {
   const [selectedHour, setSelectedHour] = useState(9);
   const [selectedMinute, setSelectedMinute] = useState(0);
   const [selectedPeriod, setSelectedPeriod] = useState<'AM' | 'PM'>('AM');
+  const [selectedTime, setSelectedTime] = useState(() => {
+    const d = new Date();
+    d.setHours(9, 0, 0, 0);
+    return d;
+  });
   const [selectedDays, setSelectedDays] = useState<DayOfWeek[]>(['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun']);
   const [scheduleMode, setScheduleMode] = useState<'days' | 'interval'>('days');
   const [intervalDays, setIntervalDays] = useState('7');
@@ -586,54 +591,24 @@ export default function MySchedulesScreen() {
         {!noItems && (
           <>
             <ThemedText style={styles.inputLabel}>Time:</ThemedText>
-            <View style={styles.timePickerContainer}>
-              <View style={styles.timePickerColumn}>
-                <ThemedText style={styles.timePickerLabel}>Hour</ThemedText>
-                <ScrollView style={styles.timePickerScroll} showsVerticalScrollIndicator={false} nestedScrollEnabled>
-                  {hours.map((hour) => (
-                    <TouchableOpacity
-                      key={hour}
-                      style={[styles.timePickerItem, selectedHour === hour && { backgroundColor: tintColor + '20' }]}
-                      onPress={() => setSelectedHour(hour)}
-                    >
-                      <ThemedText style={[styles.timePickerItemText, selectedHour === hour && { color: tintColor, fontWeight: '600' }]}>
-                        {hour}
-                      </ThemedText>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-              <View style={styles.timePickerColumn}>
-                <ThemedText style={styles.timePickerLabel}>Min</ThemedText>
-                <ScrollView style={styles.timePickerScroll} showsVerticalScrollIndicator={false} nestedScrollEnabled>
-                  {minutes.map((minute) => (
-                    <TouchableOpacity
-                      key={minute}
-                      style={[styles.timePickerItem, selectedMinute === minute && { backgroundColor: tintColor + '20' }]}
-                      onPress={() => setSelectedMinute(minute)}
-                    >
-                      <ThemedText style={[styles.timePickerItemText, selectedMinute === minute && { color: tintColor, fontWeight: '600' }]}>
-                        {minute.toString().padStart(2, '0')}
-                      </ThemedText>
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </View>
-              <View style={styles.periodColumn}>
-                <ThemedText style={styles.timePickerLabel}>Period</ThemedText>
-                <TouchableOpacity
-                  style={[styles.periodButton, selectedPeriod === 'AM' && { backgroundColor: tintColor, borderColor: tintColor }]}
-                  onPress={() => setSelectedPeriod('AM')}
-                >
-                  <ThemedText style={[styles.periodButtonText, selectedPeriod === 'AM' && { color: 'white' }]}>AM</ThemedText>
-                </TouchableOpacity>
-                <TouchableOpacity
-                  style={[styles.periodButton, selectedPeriod === 'PM' && { backgroundColor: tintColor, borderColor: tintColor }]}
-                  onPress={() => setSelectedPeriod('PM')}
-                >
-                  <ThemedText style={[styles.periodButtonText, selectedPeriod === 'PM' && { color: 'white' }]}>PM</ThemedText>
-                </TouchableOpacity>
-              </View>
+            <View style={styles.nativeTimePickerContainer}>
+              <DateTimePicker
+                value={selectedTime}
+                mode="time"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                minuteInterval={5}
+                onChange={(event, date) => {
+                  if (date) {
+                    setSelectedTime(date);
+                    const h = date.getHours();
+                    const m = date.getMinutes();
+                    setSelectedPeriod(h >= 12 ? 'PM' : 'AM');
+                    setSelectedHour(h === 0 ? 12 : h > 12 ? h - 12 : h);
+                    setSelectedMinute(m);
+                  }
+                }}
+                style={{ height: 150 }}
+              />
             </View>
 
             <ThemedText style={styles.inputLabel}>Repeat:</ThemedText>
@@ -1013,6 +988,10 @@ const styles = StyleSheet.create({
   timePickerContainer: {
     flexDirection: 'row',
     gap: 12,
+    marginBottom: 16,
+  },
+  nativeTimePickerContainer: {
+    alignItems: 'center',
     marginBottom: 16,
   },
   timePickerColumn: {

@@ -13,10 +13,11 @@ import { useHierarchicalBack } from '@/hooks/use-hierarchical-back';
 import { Ionicons } from '@expo/vector-icons';
 
 const { height: screenHeight, width: screenWidth } = Dimensions.get('window');
-const SHAPE_SIZE = Math.min(250, screenWidth * 0.6, screenHeight * 0.25); // Responsive size with max 250px
+const SHAPE_SIZE = Math.min(250, screenWidth * 0.6, screenHeight * 0.25);
 const TRIAL_COUNT = 20;
-// Removed auto-advance timers - user controls pacing now
-const N_BACK_LEVEL = 2; // 2-back
+const N_LEVELS = [1, 2, 3, 4] as const;
+const ADAPTIVE_THRESHOLD = 0.85;
+const ADAPTIVE_SESSIONS_REQUIRED = 3;
 
 const SHAPES = [
   { id: 'circle', name: 'Circle', symbol: '●' },
@@ -47,17 +48,18 @@ export default function NBackTestScreen() {
   const [scheduledTest, setScheduledTest] = useState<any>(null);
   const [studyContext, setStudyContext] = useState<any>(null);
   const [activeTestSession, setActiveTestSession] = useState<any>(null);
+  const [nLevel, setNLevel] = useState<number>(2);
+  const [adaptiveMode, setAdaptiveMode] = useState<boolean>(false);
+  const [recentAccuracies, setRecentAccuracies] = useState<number[]>([]);
   
   const trialStartTime = useRef<number>(0);
 
-  const generateTrials = (): Trial[] => {
+  const generateTrials = (level: number): Trial[] => {
     const newTrials: Trial[] = [];
     const sequence: string[] = [];
     
-    // First generate the sequence ensuring proper match distribution
     for (let i = 0; i < TRIAL_COUNT; i++) {
-      if (i < N_BACK_LEVEL) {
-        // First N trials cannot be matches
+      if (i < level) {
         const shapeIndex = Math.floor(Math.random() * SHAPES.length);
         const shape = SHAPES[shapeIndex]?.id || 'circle';
         sequence.push(shape);
@@ -69,12 +71,10 @@ export default function NBackTestScreen() {
           responseTime: null
         });
       } else {
-        // Determine if this should be a match (aim for ~30% matches)
         const shouldBeMatch = Math.random() < 0.3;
         
         if (shouldBeMatch) {
-          // Use the shape from N positions back
-          const shape = sequence[i - N_BACK_LEVEL];
+          const shape = sequence[i - level];
           sequence.push(shape);
           newTrials.push({
             id: i,
@@ -84,11 +84,9 @@ export default function NBackTestScreen() {
             responseTime: null
           });
         } else {
-          // Use a different shape than N positions back
-          const excludeShape = sequence[i - N_BACK_LEVEL];
+          const excludeShape = sequence[i - level];
           const availableShapes = SHAPES.filter(s => s.id !== excludeShape);
           if (availableShapes.length === 0) {
-            // Fallback if filter fails
             const shape = SHAPES[0]?.id || 'circle';
             sequence.push(shape);
           } else {
@@ -180,7 +178,7 @@ export default function NBackTestScreen() {
   };
 
   const startGameNow = () => {
-    const newTrials = generateTrials();
+    const newTrials = generateTrials(nLevel);
     
     setGameState('playing');
     setTrials(newTrials);
@@ -222,6 +220,8 @@ export default function NBackTestScreen() {
     
     const speed = averageHitResponseTime;
     
+    const difficultyAdjustedScore = accuracyDecimal * (1 + 0.2 * (nLevel - 1));
+    
     const rawData = {
       accuracy: accuracyDecimal,
       hits: hits.length,
@@ -232,7 +232,9 @@ export default function NBackTestScreen() {
       averageHitResponseTime,
       dPrime,
       trials: trials,
-      speed
+      speed,
+      nLevel,
+      difficultyAdjustedScore
     };
     
     const saveTestResult = async () => {
@@ -242,10 +244,23 @@ export default function NBackTestScreen() {
         const supplementLogId = scheduledTest ? studyContext?.supplement_log_id : undefined;
         
         const score = Math.round(accuracy);
-        await saveCognitiveTestResult('n_back', score, rawData, undefined, studyId, supplementLogId, accuracy, speed);
+        await saveCognitiveTestResult('n_back', score, rawData, undefined, studyId, supplementLogId, accuracy, speed, nLevel);
         
         if (scheduledTest) {
           await completeScheduledTest(scheduledTest.id);
+        }
+        
+        if (adaptiveMode) {
+          const newAccuracies = [...recentAccuracies, accuracyDecimal].slice(-ADAPTIVE_SESSIONS_REQUIRED);
+          setRecentAccuracies(newAccuracies);
+          
+          if (newAccuracies.length >= ADAPTIVE_SESSIONS_REQUIRED) {
+            const allAboveThreshold = newAccuracies.every(acc => acc >= ADAPTIVE_THRESHOLD);
+            if (allAboveThreshold && nLevel < 4) {
+              setNLevel(nLevel + 1);
+              setRecentAccuracies([]);
+            }
+          }
         }
         
         console.log('✅ N-BACK TEST: Test result saved successfully');
@@ -377,18 +392,67 @@ export default function NBackTestScreen() {
               Working memory test - scientifically validated!{'\n\n'}
               • You&apos;ll see a sequence of shapes{'\n'}
               • Tap a button to advance to the next shape{'\n'}
-              • Tap &quot;MATCH&quot; if current shape matches the one from 2 steps back{'\n'}
+              • Tap &quot;MATCH&quot; if current shape matches the one from {nLevel} step{nLevel > 1 ? 's' : ''} back{'\n'}
               • Tap &quot;NO MATCH&quot; if it doesn&apos;t match{'\n'}
               • 20 trials total{'\n'}
               • Focus and respond quickly!
             </ThemedText>
-            <TouchableOpacity 
-              style={[styles.startButton, { backgroundColor: tintColor }]} 
+            
+            <ThemedView style={styles.levelSelector}>
+              <ThemedText style={styles.levelLabel}>Difficulty Level:</ThemedText>
+              <View style={styles.levelButtons}>
+                {N_LEVELS.map((level) => (
+                  <TouchableOpacity
+                    key={level}
+                    style={[
+                      styles.levelButton,
+                      nLevel === level && { backgroundColor: tintColor },
+                      nLevel !== level && { borderColor: tintColor, borderWidth: 1 }
+                    ]}
+                    onPress={() => setNLevel(level)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${level}-back difficulty level`}
+                    testID={`btn-nback-level-${level}`}
+                  >
+                    <ThemedText style={[
+                      styles.levelButtonText,
+                      nLevel === level && { color: 'white' }
+                    ]}>
+                      {level}-back
+                    </ThemedText>
+                  </TouchableOpacity>
+                ))}
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.adaptiveToggle,
+                  adaptiveMode && { backgroundColor: tintColor + '20', borderColor: tintColor }
+                ]}
+                onPress={() => setAdaptiveMode(!adaptiveMode)}
+                accessibilityRole="button"
+                accessibilityLabel={`Adaptive mode ${adaptiveMode ? 'enabled' : 'disabled'}`}
+                testID="btn-nback-adaptive"
+              >
+                <Ionicons 
+                  name={adaptiveMode ? 'checkbox' : 'square-outline'} 
+                  size={20} 
+                  color={adaptiveMode ? tintColor : '#8E8E93'} 
+                />
+                <ThemedText style={styles.adaptiveText}>
+                  Adaptive mode (auto-increase on 85%+ accuracy)
+                </ThemedText>
+              </TouchableOpacity>
+            </ThemedView>
+            <TouchableOpacity
+              style={[styles.startButton, { backgroundColor: tintColor }]}
               onPress={startGame}
+              accessibilityRole="button"
+              accessibilityLabel="Start n-back test"
+              testID="btn-nback-start"
             >
               <ThemedText style={styles.startButtonText}>Start Test</ThemedText>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+            <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Back to menu" testID="btn-nback-back">
               <ThemedText style={styles.backButtonText}>Back to Menu</ThemedText>
             </TouchableOpacity>
           </ThemedView>
@@ -402,7 +466,7 @@ export default function NBackTestScreen() {
       <ThemedView style={styles.container} safeArea>
         <ThemedView style={styles.countdownContainer}>
           <ThemedText style={styles.reminderText}>
-            Remember: Match if current shape = shape from 2 steps back
+            Remember: Match if current shape = shape from {nLevel} step{nLevel > 1 ? 's' : ''} back
           </ThemedText>
         </ThemedView>
       </ThemedView>
@@ -418,6 +482,7 @@ export default function NBackTestScreen() {
     const correctRejections = trials.filter(t => !t.isMatch && t.userResponse === false);
     
     const accuracy = (hits.length + correctRejections.length) / TRIAL_COUNT;
+    const adjustedScore = accuracy * (1 + 0.2 * (nLevel - 1));
     
     const averageResponseTime = completedTrials.length > 0 
       ? completedTrials.reduce((sum, t) => sum + (t.responseTime || 0), 0) / completedTrials.length 
@@ -432,16 +497,19 @@ export default function NBackTestScreen() {
       <ThemedView style={styles.container} safeArea>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <ThemedView style={styles.resultsContainer}>
-            <ThemedText type="title" style={styles.title}>Test Complete!</ThemedText>
-            <ThemedText style={styles.finalScore}>Test Complete!</ThemedText>
-            <ThemedText style={styles.metricText}>Accuracy: {(accuracy * 100).toFixed(1)}% | Speed: {averageHitResponseTime.toFixed(0)}ms</ThemedText>
+            <ThemedText type="title" style={styles.title}>{nLevel}-Back Complete!</ThemedText>
+            <ThemedText style={styles.metricText}>Accuracy: {(accuracy * 100).toFixed(1)}%</ThemedText>
+            <ThemedText style={styles.metricText}>Adjusted Score: {(adjustedScore * 100).toFixed(1)}%</ThemedText>
+            <ThemedText style={styles.metricText}>Speed: {averageHitResponseTime.toFixed(0)}ms</ThemedText>
             <ThemedText style={styles.metricText}>Hits: {hits.length}/{matches.length}</ThemedText>
             <ThemedText style={styles.metricText}>Misses: {misses.length}</ThemedText>
             <ThemedText style={styles.metricText}>False Alarms: {falseAlarms.length}</ThemedText>
             <ThemedText style={styles.metricText}>Correct Rejections: {correctRejections.length}</ThemedText>
             <ThemedText style={styles.metricText}>Avg Response Time: {averageResponseTime.toFixed(0)}ms</ThemedText>
-            {averageHitResponseTime > 0 && (
-              <ThemedText style={styles.metricText}>Avg Hit Response Time: {averageHitResponseTime.toFixed(0)}ms</ThemedText>
+            {adaptiveMode && accuracy >= ADAPTIVE_THRESHOLD && nLevel < 4 && (
+              <ThemedText style={[styles.metricText, { color: '#34C759', fontWeight: '600' }]}>
+                Great job! {ADAPTIVE_SESSIONS_REQUIRED - recentAccuracies.length - 1} more sessions at 85%+ to level up!
+              </ThemedText>
             )}
             <ThemedText style={styles.resultMessage}>
               {accuracy >= 0.8 ? 'Excellent working memory!' : 
@@ -450,25 +518,31 @@ export default function NBackTestScreen() {
             </ThemedText>
             {params.sequence === 'all-nine' ? (
               <>
-                <TouchableOpacity 
-                  style={[styles.startButton, { backgroundColor: tintColor }]} 
+                <TouchableOpacity
+                  style={[styles.startButton, { backgroundColor: tintColor }]}
                   onPress={handleFinishBattery}
+                  accessibilityRole="button"
+                  accessibilityLabel="Continue to Stroop test"
+                  testID="btn-nback-next"
                 >
                   <ThemedText style={styles.startButtonText}>Continue to Stroop</ThemedText>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+                <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Exit test battery" testID="btn-nback-exit-battery">
                   <ThemedText style={styles.backButtonText}>Exit Test Battery</ThemedText>
                 </TouchableOpacity>
               </>
             ) : (
               <>
-                <TouchableOpacity 
-                  style={[styles.startButton, { backgroundColor: tintColor }]} 
+                <TouchableOpacity
+                  style={[styles.startButton, { backgroundColor: tintColor }]}
                   onPress={handlePlayAgain}
+                  accessibilityRole="button"
+                  accessibilityLabel="Play again"
+                  testID="btn-nback-play-again"
                 >
                   <ThemedText style={styles.startButtonText}>Play Again</ThemedText>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+                <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Back to menu" testID="btn-nback-back-menu">
                   <ThemedText style={styles.backButtonText}>Back to Menu</ThemedText>
                 </TouchableOpacity>
               </>
@@ -486,12 +560,15 @@ export default function NBackTestScreen() {
           style={styles.bannerBackButton}
           onPress={handleBackToMenu}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Back to menu"
+          testID="btn-nback-back-playing"
         >
           <Ionicons name="arrow-back" size={20} color={tintColor} />
         </TouchableOpacity>
         <View style={styles.bannerStats}>
           <ThemedText style={styles.bannerStatText}>Trial: {currentTrial + 1}/20</ThemedText>
-          <ThemedText style={styles.bannerStatText}>2-Back Test</ThemedText>
+          <ThemedText style={styles.bannerStatText}>{nLevel}-Back Test</ThemedText>
         </View>
       </ThemedView>
 
@@ -506,22 +583,28 @@ export default function NBackTestScreen() {
       </View>
 
       <ThemedView style={styles.responseArea}>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.responseButton, styles.noMatchButton, { borderColor: '#FF3B30' }]}
           onPress={() => handleResponse(false)}
+          accessibilityRole="button"
+          accessibilityLabel="No match"
+          testID="btn-nback-no-match"
         >
           <ThemedText style={[styles.responseButtonText, { color: '#FF3B30' }]}>NO MATCH</ThemedText>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
+
+        <TouchableOpacity
           style={[styles.responseButton, styles.matchButton, { borderColor: '#34C759' }]}
           onPress={() => handleResponse(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Match"
+          testID="btn-nback-match"
         >
           <ThemedText style={[styles.responseButtonText, { color: '#34C759' }]}>MATCH</ThemedText>
         </TouchableOpacity>
       </ThemedView>
 
-      <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+      <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Back to menu" testID="btn-nback-back-playing-bottom">
         <ThemedText style={styles.backButtonText}>Back to Menu</ThemedText>
       </TouchableOpacity>
     </ThemedView>
@@ -749,5 +832,45 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
     textAlign: 'center',
+  },
+  levelSelector: {
+    marginBottom: 30,
+    alignItems: 'center',
+    width: '100%',
+  },
+  levelLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 12,
+  },
+  levelButtons: {
+    flexDirection: 'row',
+    gap: 10,
+    marginBottom: 16,
+  },
+  levelButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    minWidth: 70,
+    alignItems: 'center',
+  },
+  levelButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  adaptiveToggle: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#8E8E93',
+  },
+  adaptiveText: {
+    fontSize: 13,
+    opacity: 0.8,
   },
 });

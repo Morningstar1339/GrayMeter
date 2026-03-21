@@ -42,6 +42,63 @@ const SLEEP_REMINDER_IDENTIFIER = 'sleep-reminder';
 const BEDTIME_REMINDER_IDENTIFIER = 'bedtime-reminder';
 const TWENTY_FOUR_HOURS_SECONDS = 24 * 60 * 60;
 
+export const restoreScheduledNotifications = async (): Promise<number> => {
+  console.log('[NOTIF RESTORE] Checking for notifications to restore...');
+  
+  try {
+    const currentlyScheduled = await Notifications.getAllScheduledNotificationsAsync();
+    const scheduledIds = new Set(currentlyScheduled.map(n => n.identifier));
+    
+    console.log(`[NOTIF RESTORE] Currently ${currentlyScheduled.length} notifications in system`);
+    
+    const pendingRecords = await getPendingNotifications();
+    let restoredCount = 0;
+    
+    for (const record of pendingRecords) {
+      if (scheduledIds.has(record.notification_id)) {
+        continue;
+      }
+      
+      const now = Math.floor(Date.now() / 1000);
+      if (record.scheduled_time <= now) {
+        continue;
+      }
+      
+      try {
+        const data = record.data ? JSON.parse(record.data) : {};
+        const triggerDate = new Date(record.scheduled_time * 1000);
+        
+        await Notifications.scheduleNotificationAsync({
+          content: {
+            title: record.title,
+            body: record.body,
+            data: { type: record.type, relatedId: record.related_id, ...data },
+            sound: true,
+            ...(Platform.OS === 'android' && { channelId: 'default' }),
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.DATE,
+            date: triggerDate,
+          },
+          identifier: record.notification_id,
+        });
+        
+        restoredCount++;
+        const minutesUntil = Math.round((record.scheduled_time - now) / 60);
+        console.log(`[NOTIF RESTORE] Restored: ${record.title} (in ${minutesUntil} min)`);
+      } catch (err) {
+        console.error(`[NOTIF RESTORE] Failed to restore ${record.notification_id}:`, err);
+      }
+    }
+    
+    console.log(`[NOTIF RESTORE] Restored ${restoredCount} notifications`);
+    return restoredCount;
+  } catch (error) {
+    console.error('[NOTIF RESTORE] Failed:', error);
+    return 0;
+  }
+};
+
 export const initializeNotificationsTable = async (): Promise<void> => {
   try {
     if (isFallbackMode()) {
@@ -353,7 +410,7 @@ export const scheduleSleepReminder = async (): Promise<string | null> => {
 
     await cancelSleepReminder();
 
-    const triggerSeconds = TWENTY_FOUR_HOURS_SECONDS;
+    const triggerDate = new Date(Date.now() + TWENTY_FOUR_HOURS_SECONDS * 1000);
 
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {
@@ -364,13 +421,13 @@ export const scheduleSleepReminder = async (): Promise<string | null> => {
         ...(Platform.OS === 'android' && { channelId: 'sleep-reminders' }),
       },
       trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-        seconds: triggerSeconds,
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: triggerDate,
       },
       identifier: SLEEP_REMINDER_IDENTIFIER,
     });
 
-    console.log(`Sleep reminder scheduled for ${triggerSeconds} seconds (${triggerSeconds / 3600} hours)`);
+    console.log(`Sleep reminder scheduled for ${triggerDate.toLocaleString()}`);
 
     await saveNotificationRecord(
       notificationId,
@@ -449,8 +506,6 @@ export const scheduleBedtimeReminder = async (): Promise<string | null> => {
       targetTime.setDate(targetTime.getDate() + 1);
     }
     
-    const triggerSeconds = Math.floor((targetTime.getTime() - now.getTime()) / 1000);
-
     const notificationId = await Notifications.scheduleNotificationAsync({
       content: {
         title: 'Time for bed!',
@@ -460,8 +515,8 @@ export const scheduleBedtimeReminder = async (): Promise<string | null> => {
         ...(Platform.OS === 'android' && { channelId: 'sleep-reminders' }),
       },
       trigger: {
-        type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-        seconds: triggerSeconds,
+        type: Notifications.SchedulableTriggerInputTypes.DATE,
+        date: targetTime,
       },
       identifier: BEDTIME_REMINDER_IDENTIFIER,
     });
@@ -549,9 +604,10 @@ export const scheduleNotification = async (
       return null;
     }
 
+    const triggerDate = new Date(scheduledTime * 1000);
     const trigger = {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL as const,
-      seconds: triggerSeconds,
+      type: Notifications.SchedulableTriggerInputTypes.DATE as const,
+      date: triggerDate,
     };
     
     const content = {
@@ -747,9 +803,10 @@ export const sendTestNotification = async (): Promise<void> => {
       throw new Error('Notification permissions not granted');
     }
 
+    const triggerDate = new Date(Date.now() + 2000);
     const trigger = {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL as const,
-      seconds: 2,
+      type: Notifications.SchedulableTriggerInputTypes.DATE as const,
+      date: triggerDate,
     };
     
     console.log('[NOTIF DEBUG] Test notification trigger:', JSON.stringify(trigger));
@@ -759,6 +816,7 @@ export const sendTestNotification = async (): Promise<void> => {
         title: 'Test Notification',
         body: 'This is a test notification from GrayMeter',
         sound: true,
+        ...(Platform.OS === 'android' && { channelId: 'default' }),
       },
       trigger,
     });
@@ -797,12 +855,12 @@ export const sendDelayedTestNotification = async (delaySeconds: number = 10): Pr
     const scheduledNotifications = await Notifications.getAllScheduledNotificationsAsync();
     console.log('[NOTIF DEBUG] Currently scheduled notifications:', scheduledNotifications.length);
 
+    const fireTime = new Date(Date.now() + delaySeconds * 1000);
     const trigger = {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL as const,
-      seconds: delaySeconds,
+      type: Notifications.SchedulableTriggerInputTypes.DATE as const,
+      date: fireTime,
     };
     
-    const fireTime = new Date(Date.now() + delaySeconds * 1000);
     console.log('[NOTIF DEBUG] Scheduling test for:', fireTime.toLocaleTimeString());
 
     const notificationId = await Notifications.scheduleNotificationAsync({

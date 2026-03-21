@@ -129,6 +129,16 @@ const openSQLiteDatabaseInternal = async (): Promise<SQLite.SQLiteDatabase> => {
     logInfo('openSQLiteDatabaseInternal', 'Creating database tables...');
     await createTables(db);
 
+    // Seed default profiles if needed
+    try {
+      const { seedDefaultSubstanceProfiles } = await import('./pk-curves');
+      await seedDefaultSubstanceProfiles();
+      logInfo('openSQLiteDatabaseInternal', 'Default substance profiles seeded');
+    } catch (seedError) {
+      logError('openSQLiteDatabaseInternal', `Failed to seed substance profiles: ${seedError}`);
+      // Don't fail the whole initialization for seeding issues
+    }
+
     sqliteDb = db;
     isDatabaseReady = true;
     fallbackMode = false;
@@ -156,7 +166,8 @@ const createTables = async (db: SQLite.SQLiteDatabase): Promise<void> => {
       icon_id TEXT,
       color TEXT DEFAULT '#007AFF',
       schedule_enabled INTEGER DEFAULT 0,
-      study_enabled INTEGER DEFAULT 0
+      study_enabled INTEGER DEFAULT 0,
+      substance_profile_id TEXT
     );
 
     CREATE TABLE IF NOT EXISTS supplement_logs (
@@ -194,7 +205,8 @@ const createTables = async (db: SQLite.SQLiteDatabase): Promise<void> => {
       raw_data TEXT,
       completion_time REAL,
       study_id INTEGER,
-      supplement_log_id INTEGER
+      supplement_log_id INTEGER,
+      n_level INTEGER DEFAULT 2
     );
 
     CREATE TABLE IF NOT EXISTS sleep_logs (
@@ -308,6 +320,57 @@ const createTables = async (db: SQLite.SQLiteDatabase): Promise<void> => {
       wellness TEXT,
       news_types TEXT NOT NULL DEFAULT '[]'
     );
+
+    CREATE TABLE IF NOT EXISTS user_learning_curves (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      test_type TEXT NOT NULL UNIQUE,
+      ceiling REAL NOT NULL,
+      floor REAL NOT NULL,
+      lambda REAL NOT NULL,
+      r_squared REAL DEFAULT 0,
+      last_updated INTEGER NOT NULL,
+      n_sessions INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS user_test_stats (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      test_type TEXT NOT NULL,
+      metric TEXT NOT NULL,
+      mean REAL NOT NULL,
+      sd REAL NOT NULL,
+      min_val REAL,
+      max_val REAL,
+      n_samples INTEGER NOT NULL,
+      last_updated INTEGER NOT NULL,
+      UNIQUE(test_type, metric)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_user_test_stats_type_metric ON user_test_stats (test_type, metric);
+
+    CREATE TABLE IF NOT EXISTS substance_profiles (
+      id TEXT PRIMARY KEY,
+      names TEXT NOT NULL,
+      category TEXT NOT NULL CHECK (category IN ('untested', 'food_grade', 'otc', 'prescription', 'schedule_v', 'schedule_iv', 'schedule_iii', 'schedule_ii', 'schedule_i')),
+      curves TEXT NOT NULL,
+      tolerance_profile TEXT CHECK (tolerance_profile IN ('none', 'mild', 'moderate', 'significant')),
+      withdrawal_profile TEXT,
+      confidence_tier INTEGER CHECK (confidence_tier BETWEEN 1 AND 4),
+      citations TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS activity_profiles (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      description TEXT NOT NULL,
+      curves TEXT NOT NULL,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_substance_profiles_category ON substance_profiles (category);
+    CREATE INDEX IF NOT EXISTS idx_activity_profiles_name ON activity_profiles (name);
   `);
   
   logInfo('createTables', 'All database tables created successfully');
@@ -317,6 +380,23 @@ const createTables = async (db: SQLite.SQLiteDatabase): Promise<void> => {
 
 const runMigrations = async (db: SQLite.SQLiteDatabase): Promise<void> => {
   try {
+    // Migration: Add substance_profile_id to supplements table
+    const supplementsColumns = await db.getAllAsync<{ name: string }>(
+      "PRAGMA table_info(supplements)"
+    );
+    const supplementColumnNames = supplementsColumns.map((col: any) => col.name);
+    
+    if (!supplementColumnNames.includes('substance_profile_id')) {
+      try {
+        await db.execAsync('ALTER TABLE supplements ADD COLUMN substance_profile_id TEXT');
+        logInfo('runMigrations', 'Added substance_profile_id column to supplements');
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) {
+          logError('runMigrations', `Failed to add substance_profile_id column: ${e.message}`);
+        }
+      }
+    }
+    
     // Migration: Recreate schedules table with updated CHECK constraint for all schedule types
     const schedulesColumns = await db.getAllAsync<{ name: string }>(
       "PRAGMA table_info(schedules)"
@@ -387,6 +467,17 @@ const runMigrations = async (db: SQLite.SQLiteDatabase): Promise<void> => {
       try {
         await db.execAsync(`ALTER TABLE cognitive_test_results ADD COLUMN speed REAL DEFAULT 0`);
         logInfo('runMigrations', 'Added speed column to cognitive_test_results');
+      } catch (e: any) {
+        if (!e.message?.includes('duplicate column')) {
+          logError('runMigrations', e);
+        }
+      }
+    }
+    
+    if (!cogColumnNames.includes('n_level')) {
+      try {
+        await db.execAsync(`ALTER TABLE cognitive_test_results ADD COLUMN n_level INTEGER DEFAULT 2`);
+        logInfo('runMigrations', 'Added n_level column to cognitive_test_results');
       } catch (e: any) {
         if (!e.message?.includes('duplicate column')) {
           logError('runMigrations', e);

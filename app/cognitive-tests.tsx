@@ -15,12 +15,12 @@ const GAP = 12;
 const TESTS = [
   { key: 'reflexes',        label: 'Reflexes',   time: '10s',  icon: 'flash-outline',         route: '/tests/reflexes' },
   { key: 'memory',          label: 'Memory',     time: '2m',   icon: 'grid-outline',          route: '/tests/memory' },
-  { key: 'connections',     label: 'Connects',   time: '2m',   icon: 'git-network-outline',   route: '/tests/connections' },
+  { key: 'connections',     label: 'Route Planner', time: '2m', icon: 'git-network-outline',   route: '/tests/connections' },
   { key: 'rock-dodger',     label: 'Dodger',     time: '1m',   icon: 'shield-outline',        route: '/tests/rock-dodger' },
   { key: 'questionnaire',   label: 'Mood',       time: '10s',  icon: 'happy-outline',         route: '/tests/questionnaire' },
   { key: 'pattern-matcher', label: 'Pattern',    time: '2m',   icon: 'shapes-outline',        route: '/tests/pattern-matcher' },
-  { key: 'tile-puzzle',     label: '8-Tile',     time: '3m',   icon: 'apps-outline',          route: '/tests/tile-puzzle' },
-  { key: 'stroop',          label: 'Stroop',     time: '45s',  icon: 'color-palette-outline', route: '/tests/stroop' },
+  { key: 'tile-puzzle',     label: 'Planning',     time: '3m',   icon: 'apps-outline',          route: '/tests/tile-puzzle' },
+  { key: 'stroop',          label: 'Coherence',     time: '45s',  icon: 'color-palette-outline', route: '/tests/stroop' },
   { key: 'n-back',          label: 'N-Back',     time: '1m',   icon: 'layers-outline',        route: '/tests/n-back' },
 ] as const;
 
@@ -81,6 +81,9 @@ export default function CognitiveTestsScreen() {
           }
         ]}
         onPress={() => startTest(test.route)}
+        accessibilityRole="button"
+        accessibilityLabel={`Start ${test.label} test`}
+        testID={`btn-test-${test.key}`}
       >
         <View style={[
           styles.octagonInner,
@@ -123,6 +126,9 @@ export default function CognitiveTestsScreen() {
         <TouchableOpacity
           style={[styles.runAllButton, { backgroundColor: tintColor }]}
           onPress={handleAllTests}
+          accessibilityRole="button"
+          accessibilityLabel="Run all 9 tests"
+          testID="btn-run-all-tests"
         >
           <Ionicons
             name="checkmark-done-outline"
@@ -149,11 +155,11 @@ export default function CognitiveTestsScreen() {
       'reflexes': 'Reflexes',
       'memory': 'Memory',
       'judgment': 'Judgment',
-      'rock_dodger': 'Rock Dodger',
-      'pattern_matcher': 'Pattern Matcher',
-      'tile_puzzle': '8-Tile Puzzle',
+      'rock_dodger': 'Coordination',
+      'pattern_matcher': 'Deduction',
+      'tile_puzzle': 'Planning',
       'n_back': 'N-Back',
-      'stroop': 'Stroop',
+      'stroop': 'Coherence',
       'questionnaire': 'Mood'
     };
     return names[testType] || testType;
@@ -250,6 +256,9 @@ export default function CognitiveTestsScreen() {
             style={styles.homeButton}
             onPress={handleHomePress}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Go home"
+            testID="btn-tests-home"
           >
             <Ionicons name="home-outline" size={24} color={tintColor} />
           </TouchableOpacity>
@@ -266,6 +275,9 @@ export default function CognitiveTestsScreen() {
               activeTab === 'test' && { backgroundColor: tintColor }
             ]}
             onPress={() => setActiveTab('test')}
+            accessibilityRole="tab"
+            accessibilityLabel="Test tab"
+            testID="tab-tests"
           >
             <Ionicons 
               name="fitness-outline" 
@@ -286,6 +298,9 @@ export default function CognitiveTestsScreen() {
               activeTab === 'history' && { backgroundColor: tintColor }
             ]}
             onPress={() => setActiveTab('history')}
+            accessibilityRole="tab"
+            accessibilityLabel="History tab"
+            testID="tab-history"
           >
             <Ionicons 
               name="time-outline" 

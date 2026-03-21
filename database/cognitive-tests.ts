@@ -1,4 +1,5 @@
-import { withDatabase, getFallbackData, addFallbackData, getDatabase, checkDatabaseHealth, asyncStorageGet, asyncStorageAdd } from './database';
+import { withDatabase, getFallbackData, addFallbackData, getDatabase, checkDatabaseHealth, asyncStorageGet } from './database';
+import { updateStatsFromTestResult } from './cognitive-dimensions';
 
 export interface CognitiveTestResult {
   id: number;
@@ -11,6 +12,7 @@ export interface CognitiveTestResult {
   completion_time?: number;
   study_id?: number;
   supplement_log_id?: number;
+  n_level?: number;
 }
 
 export const saveCognitiveTestResult = async (
@@ -21,7 +23,8 @@ export const saveCognitiveTestResult = async (
   studyId?: number,
   supplementLogId?: number,
   accuracy?: number,
-  speed?: number
+  speed?: number,
+  nLevel?: number
 ): Promise<number> => {
   const timestamp = Math.floor(Date.now() / 1000);
   const operationId = `save-${testType}-${timestamp}`;
@@ -108,23 +111,56 @@ export const saveCognitiveTestResult = async (
       raw_data: rawData ? JSON.stringify(rawData) : null,
       completion_time: completionTime || null,
       study_id: studyId || null,
-      supplement_log_id: supplementLogId || null
+      supplement_log_id: supplementLogId || null,
+      n_level: nLevel ?? (rawData?.nLevel ?? 2)
     };
     console.log(`🔄 [${operationId}] Insert data prepared:`, insertData);
     console.log(`✅ [${operationId}] STEP 4 COMPLETE: Data preparation complete`);
     
     return await withDatabase(
-      async () => {
-        console.log(`🔄 [${operationId}] STEP 5: Executing AsyncStorage insert...`);
+      async (db) => {
+        console.log(`🔄 [${operationId}] STEP 5: Executing SQLite insert...`);
         try {
-          const insertId = await asyncStorageAdd('cognitive_test_results', insertData);
+          const result = await db.runAsync(
+            `INSERT INTO cognitive_test_results 
+             (test_type, timestamp, score, accuracy, speed, raw_data, completion_time, study_id, supplement_log_id, n_level) 
+             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+            [
+              insertData.test_type,
+              insertData.timestamp,
+              insertData.score,
+              insertData.accuracy,
+              insertData.speed,
+              insertData.raw_data,
+              insertData.completion_time,
+              insertData.study_id,
+              insertData.supplement_log_id,
+              insertData.n_level
+            ]
+          );
+          const insertId = result.lastInsertRowId;
           
-          console.log(`✅ [${operationId}] STEP 5 COMPLETE: AsyncStorage insert successful - ID: ${insertId}`);
+          console.log(`✅ [${operationId}] STEP 5 COMPLETE: SQLite insert successful - ID: ${insertId}`);
+          
+          try {
+            await updateStatsFromTestResult({
+              id: insertId,
+              test_type: testType,
+              timestamp,
+              score,
+              accuracy: insertData.accuracy,
+              speed: insertData.speed,
+            });
+            console.log(`✅ [${operationId}] STEP 5b: User test stats updated`);
+          } catch (statsError) {
+            console.log(`⚠️ [${operationId}] STEP 5b WARNING: Stats update failed (non-critical):`, statsError);
+          }
+          
           console.log(`🎉 [${operationId}] SAVE TEST RESULT: SUCCESS - ${testType} test result saved with ID ${insertId}`);
           
           return insertId;
         } catch (dbError) {
-          console.log(`❌ [${operationId}] STEP 5 FAILED: AsyncStorage insert error:`, dbError);
+          console.log(`❌ [${operationId}] STEP 5 FAILED: SQLite insert error:`, dbError);
           console.log(`❌ [${operationId}] Error details:`);
           console.log(`   - Error name: ${dbError instanceof Error ? dbError.name : 'Unknown'}`);
           console.log(`   - Error message: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
@@ -136,7 +172,7 @@ export const saveCognitiveTestResult = async (
           console.log(`   - Study ID: ${studyId}`);
           console.log(`   - Supplement log ID: ${supplementLogId}`);
           
-          throw new Error(`AsyncStorage insert failed: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
+          throw new Error(`SQLite insert failed: ${dbError instanceof Error ? dbError.message : String(dbError)}`);
         }
       },
       `saveCognitiveTestResult-${testType}`,
@@ -174,43 +210,70 @@ export const getCognitiveTestResults = async (
   limit?: number
 ): Promise<CognitiveTestResult[]> => {
   return await withDatabase(
-    async () => {
-      let results = await asyncStorageGet('cognitive_test_results');
+    async (db) => {
+      let query = 'SELECT * FROM cognitive_test_results';
+      const params: any[] = [];
       
       if (testType) {
-        results = results.filter((result: any) => result.test_type === testType);
+        query += ' WHERE test_type = ?';
+        params.push(testType);
       }
       
-      results.sort((a: any, b: any) => b.timestamp - a.timestamp);
+      query += ' ORDER BY timestamp DESC';
       
       if (limit) {
-        results = results.slice(0, limit);
+        query += ' LIMIT ?';
+        params.push(limit);
       }
       
-      return results.map((row: any) => ({
+      const result = await db.getAllAsync(query, params);
+      
+      return result.map((row: any) => ({
         ...row,
         raw_data: typeof row.raw_data === 'string' ? JSON.parse(row.raw_data) : row.raw_data
       })) as CognitiveTestResult[];
     },
     'getCognitiveTestResults',
     async () => {
-      // Fallback mode
-      let results = getFallbackData('cognitive_test_results');
-      
-      if (testType) {
-        results = results.filter((result: any) => result.test_type === testType);
+      // Fallback mode - try AsyncStorage first, then fallback data
+      try {
+        let results = await asyncStorageGet('cognitive_test_results');
+        
+        if (testType) {
+          results = results.filter((result: any) => result.test_type === testType);
+        }
+        
+        results.sort((a: any, b: any) => b.timestamp - a.timestamp);
+        
+        if (limit) {
+          results = results.slice(0, limit);
+        }
+        
+        return results.map((row: any) => ({
+          ...row,
+          raw_data: typeof row.raw_data === 'string' ? JSON.parse(row.raw_data) : row.raw_data
+        })) as CognitiveTestResult[];
+      } catch (asyncStorageError) {
+        console.log('AsyncStorage fallback failed, using fallback data:', asyncStorageError);
+        
+        // Final fallback to in-memory data
+        let results = getFallbackData('cognitive_test_results');
+        
+        if (testType) {
+          results = results.filter((result: any) => result.test_type === testType);
+        }
+        
+        results.sort((a: any, b: any) => b.timestamp - a.timestamp);
+        
+        if (limit) {
+          results = results.slice(0, limit);
+        }
+        
+        return results.map((row: any) => ({
+          ...row,
+          raw_data: typeof row.raw_data === 'string' ? JSON.parse(row.raw_data) : row.raw_data
+        })) as CognitiveTestResult[];
       }
-      
-      results.sort((a: any, b: any) => b.timestamp - a.timestamp);
-      
-      if (limit) {
-        results = results.slice(0, limit);
-      }
-      
-      return results.map((row: any) => ({
-        ...row,
-        raw_data: typeof row.raw_data === 'string' ? JSON.parse(row.raw_data) : row.raw_data
-      })) as CognitiveTestResult[];
     }
   );
 };

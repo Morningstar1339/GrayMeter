@@ -9,6 +9,7 @@ export interface Supplement {
   color?: string;
   schedule_enabled: boolean;
   study_enabled: boolean;
+  substance_profile_id?: string;
 }
 
 export interface SupplementLog {
@@ -117,7 +118,7 @@ export const addSupplement = async (supplement: Omit<Supplement, 'id'>): Promise
       }
       
       const result = await db.runAsync(
-        'INSERT INTO supplements (name, default_dosage, dosage_unit, icon_id, color, schedule_enabled, study_enabled) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO supplements (name, default_dosage, dosage_unit, icon_id, color, schedule_enabled, study_enabled, substance_profile_id) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [
           supplement.name.trim(),
           supplement.default_dosage,
@@ -125,7 +126,8 @@ export const addSupplement = async (supplement: Omit<Supplement, 'id'>): Promise
           supplement.icon_id || null,
           supplement.color || '#007AFF',
           supplement.schedule_enabled ? 1 : 0,
-          supplement.study_enabled ? 1 : 0
+          supplement.study_enabled ? 1 : 0,
+          supplement.substance_profile_id || null
         ]
       );
       
@@ -173,7 +175,7 @@ export const updateSupplement = async (supplement: Supplement): Promise<void> =>
     }
     
     const result = await db.runAsync(
-      'UPDATE supplements SET name = ?, default_dosage = ?, dosage_unit = ?, icon_id = ?, color = ?, schedule_enabled = ?, study_enabled = ? WHERE id = ?',
+      'UPDATE supplements SET name = ?, default_dosage = ?, dosage_unit = ?, icon_id = ?, color = ?, schedule_enabled = ?, study_enabled = ?, substance_profile_id = ? WHERE id = ?',
       [
         supplement.name.trim(),
         supplement.default_dosage,
@@ -182,6 +184,7 @@ export const updateSupplement = async (supplement: Supplement): Promise<void> =>
         supplement.color || '#007AFF',
         supplement.schedule_enabled ? 1 : 0,
         supplement.study_enabled ? 1 : 0,
+        supplement.substance_profile_id || null,
         supplement.id
       ]
     );
@@ -467,4 +470,39 @@ export const deleteStudyProtocol = async (protocolId: number): Promise<void> => 
   return await withDatabase(async (db) => {
     await db.runAsync('DELETE FROM study_protocols WHERE id = ?', [protocolId]);
   }, 'delete study protocol');
+};
+
+// Get a single supplement by ID
+export const getSupplementById = async (supplementId: number): Promise<Supplement | null> => {
+  if (!isDatabaseInitialized()) {
+    throw new Error('Database not initialized. Please wait for app to load completely.');
+  }
+  
+  return await withDatabase(async (db) => {
+    const result = await db.getFirstAsync('SELECT * FROM supplements WHERE id = ?', [supplementId]);
+    if (!result) return null;
+    return {
+      ...result,
+      schedule_enabled: Boolean((result as any).schedule_enabled),
+      study_enabled: Boolean((result as any).study_enabled)
+    } as Supplement;
+  }, 'get supplement by id');
+};
+
+// Update just the substance profile ID for a supplement
+export const updateSupplementProfileId = async (supplementId: number, profileId: string | null): Promise<void> => {
+  if (!isDatabaseInitialized()) {
+    throw new Error('Database not initialized. Please wait for app to load completely.');
+  }
+  
+  return await withDatabase(async (db) => {
+    const result = await db.runAsync(
+      'UPDATE supplements SET substance_profile_id = ? WHERE id = ?',
+      [profileId, supplementId]
+    );
+    
+    if (result.changes === 0) {
+      throw new Error('Supplement not found');
+    }
+  }, 'update supplement profile id');
 };

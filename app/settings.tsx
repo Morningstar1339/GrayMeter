@@ -6,6 +6,13 @@ import { ThemedView } from '@/components/themed-view';
 import { useRouter } from 'expo-router';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { sendDelayedTestNotification, getNotificationDebugInfo, listScheduledNotifications, getNotificationSettings, updateNotificationSettings, scheduleBedtimeReminder, cancelBedtimeReminder } from '@/database/notifications';
+import { seedMockData, clearAllData, clearMockData, checkMockDataStatus, MockDataStatus } from '@/database/mock-data';
+import { exportUserData, importUserData } from '@/database/backup';
+import { importSubstanceProfiles, getAllSubstanceProfiles } from '@/database/pk-curves';
+import { VALIDATED_SUBSTANCES } from '@/database/substance-data';
+import * as FileSystem from 'expo-file-system/legacy';
+import * as Sharing from 'expo-sharing';
+import * as DocumentPicker from 'expo-document-picker';
 
 const { height: screenHeight } = Dimensions.get('window');
 const isSmallScreen = screenHeight < 700;
@@ -30,11 +37,242 @@ export default function SettingsScreen() {
   const [settings, setSettings] = useState<SleepSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
   const [bedtimeReminderEnabled, setBedtimeReminderEnabled] = useState(false);
+  const [mockDataStatus, setMockDataStatus] = useState<MockDataStatus | null>(null);
+  const [devOptionsVisible, setDevOptionsVisible] = useState(false);
+  const [seedingData, setSeedingData] = useState(false);
+  const [clearingData, setClearingData] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importingSubstances, setImportingSubstances] = useState(false);
 
   useEffect(() => {
     loadSettings();
     loadBedtimeReminderSetting();
+    refreshMockDataStatus();
   }, []);
+
+  const refreshMockDataStatus = async () => {
+    try {
+      const status = await checkMockDataStatus();
+      setMockDataStatus(status);
+    } catch (error) {
+      console.error('Error checking mock data status:', error);
+    }
+  };
+
+  const handleSeedData = async () => {
+    Alert.alert(
+      'Seed Test Data',
+      'This will add test supplements, logs, and cognitive test results for the past 45 days. Existing test data will be replaced.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Seed Data',
+          onPress: async () => {
+            setSeedingData(true);
+            try {
+              const result = await seedMockData();
+              await refreshMockDataStatus();
+              Alert.alert(
+                'Test Data Seeded',
+                `Added:\n• ${result.supplements} test supplements\n• ${result.logs} supplement logs\n• ${result.tests} cognitive test results\n\nGo to Insights to see the analysis.`
+              );
+            } catch (error) {
+              Alert.alert('Error', `Failed to seed data: ${error}`);
+            } finally {
+              setSeedingData(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleClearTestData = async () => {
+    Alert.alert(
+      'Clear Test Data',
+      'This will remove all test data (supplements and results marked with [Test]). Your real data will not be affected.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear Test Data',
+          style: 'destructive',
+          onPress: async () => {
+            setClearingData(true);
+            try {
+              await clearMockData();
+              await refreshMockDataStatus();
+              Alert.alert('Test Data Cleared', 'All test data has been removed.');
+            } catch (error) {
+              Alert.alert('Error', `Failed to clear test data: ${error}`);
+            } finally {
+              setClearingData(false);
+            }
+          }
+        }
+      ]
+    );
+  };
+
+  const handleClearAllData = async () => {
+    Alert.alert(
+      'Clear ALL Data',
+      'WARNING: This will permanently delete ALL your data including supplements, logs, test results, sleep logs, and activities. This cannot be undone!',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete Everything',
+          style: 'destructive',
+          onPress: () => {
+            Alert.alert(
+              'Are you absolutely sure?',
+              'All your tracking data will be lost forever.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                {
+                  text: 'Yes, Delete All',
+                  style: 'destructive',
+                  onPress: async () => {
+                    setClearingData(true);
+                    try {
+                      await clearAllData();
+                      await refreshMockDataStatus();
+                      Alert.alert('All Data Cleared', 'Your database has been reset.');
+                    } catch (error) {
+                      Alert.alert('Error', `Failed to clear data: ${error}`);
+                    } finally {
+                      setClearingData(false);
+                    }
+                  }
+                }
+              ]
+            );
+          }
+        }
+      ]
+    );
+  };
+
+  const handleExportData = async () => {
+    setExporting(true);
+    try {
+      const jsonData = await exportUserData();
+      const filename = `graymeter-backup-${new Date().toISOString().slice(0, 10)}.json`;
+      const docDir = (FileSystem as any).documentDirectory ?? (FileSystem as any).cacheDirectory ?? '';
+      const fileUri = docDir + filename;
+      
+      await FileSystem.writeAsStringAsync(fileUri, jsonData);
+      
+      const canShare = await Sharing.isAvailableAsync();
+      if (canShare) {
+        await Sharing.shareAsync(fileUri, {
+          mimeType: 'application/json',
+          dialogTitle: 'Export GrayMeter Backup'
+        });
+      } else {
+        Alert.alert('Export Complete', `Backup saved to: ${fileUri}`);
+      }
+    } catch (error) {
+      Alert.alert('Export Failed', `${error}`);
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const handleImportSubstanceDatabase = async () => {
+    setImportingSubstances(true);
+    try {
+      const result = await importSubstanceProfiles(VALIDATED_SUBSTANCES);
+      const allProfiles = await getAllSubstanceProfiles();
+      
+      console.log('=== Substance Database Import Complete ===');
+      console.log(`Total substances in database: ${allProfiles.length}`);
+      
+      const caffeine = allProfiles.find(p => p.names.some(n => n.toLowerCase() === 'caffeine'));
+      if (caffeine) {
+        console.log('Spot check - Caffeine:', {
+          category: caffeine.category,
+          curves: caffeine.curves,
+          confidenceTier: caffeine.confidenceTier
+        });
+      }
+      
+      Alert.alert(
+        'Substance Database Imported',
+        `Inserted: ${result.inserted}\n` +
+        `Updated: ${result.updated}\n` +
+        `Skipped: ${result.skipped}\n` +
+        `Errors: ${result.errors.length}\n\n` +
+        `Total substances: ${allProfiles.length}`
+      );
+    } catch (error) {
+      console.error('Import error:', error);
+      Alert.alert('Import Failed', `${error}`);
+    } finally {
+      setImportingSubstances(false);
+    }
+  };
+
+  const handleImportData = async () => {
+    try {
+      const result = await DocumentPicker.getDocumentAsync({
+        type: 'application/json',
+        copyToCacheDirectory: true
+      });
+      
+      if (result.canceled || !result.assets || result.assets.length === 0) {
+        return;
+      }
+      
+      const file = result.assets[0];
+      if (!file.uri) {
+        Alert.alert('Error', 'Could not access file');
+        return;
+      }
+
+      Alert.alert(
+        'Import Backup',
+        `Import data from "${file.name}"?\n\nThis will replace all your existing data (except test data). This cannot be undone.`,
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Import',
+            style: 'destructive',
+            onPress: async () => {
+              setImporting(true);
+              try {
+                const jsonString = await FileSystem.readAsStringAsync(file.uri);
+                const importResult = await importUserData(jsonString);
+                
+                if (importResult.success && importResult.stats) {
+                  const stats = importResult.stats;
+                  Alert.alert(
+                    'Import Successful',
+                    `Imported:\n` +
+                    `• ${stats.supplements} supplements\n` +
+                    `• ${stats.supplementLogs} supplement logs\n` +
+                    `• ${stats.cognitiveTestResults} test results\n` +
+                    `• ${stats.sleepLogs} sleep logs\n` +
+                    `• ${stats.activities} activities\n` +
+                    `• ${stats.activityLogs} activity logs`
+                  );
+                  await refreshMockDataStatus();
+                } else {
+                  Alert.alert('Import Failed', importResult.error || 'Unknown error');
+                }
+              } catch (error) {
+                Alert.alert('Import Failed', `${error}`);
+              } finally {
+                setImporting(false);
+              }
+            }
+          }
+        ]
+      );
+    } catch (error) {
+      Alert.alert('Error', `Could not open file picker: ${error}`);
+    }
+  };
 
   const loadBedtimeReminderSetting = async () => {
     try {
@@ -133,7 +371,7 @@ export default function SettingsScreen() {
 
   return (
     <SafeAreaView style={styles.container} edges={['top']}>
-      <StatusBar barStyle="dark-content" backgroundColor="#FFFFFF" />
+      <StatusBar barStyle="light-content" backgroundColor="#0B1426" />
       <KeyboardAvoidingView 
         style={styles.keyboardAvoidingView}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
@@ -181,6 +419,9 @@ export default function SettingsScreen() {
                           settings.bedtimeHour === hour && styles.dropdownOptionSelected
                         ]}
                         onPress={() => setSettings({...settings, bedtimeHour: hour})}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Select hour ${hour}`}
+                        testID={`btn-settings-hour-${hour}`}
                       >
                         <ThemedText style={[
                           styles.dropdownOptionText,
@@ -212,6 +453,9 @@ export default function SettingsScreen() {
                           settings.bedtimeMinute === minute && styles.dropdownOptionSelected
                         ]}
                         onPress={() => setSettings({...settings, bedtimeMinute: minute})}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Select minute ${minute.toString().padStart(2, '0')}`}
+                        testID={`btn-settings-minute-${minute}`}
                       >
                         <ThemedText style={[
                           styles.dropdownOptionText,
@@ -347,23 +591,131 @@ export default function SettingsScreen() {
               </TouchableOpacity>
             </ThemedView>
 
-            {/* Database Debug Section */}
+            {/* Developer Tools Section */}
             <ThemedView style={styles.debugSection}>
-              <ThemedText style={styles.debugTitle}>Developer Tools</ThemedText>
               <TouchableOpacity
-                style={styles.debugButton}
-                onPress={() => router.push('/database-debug')}
+                style={styles.debugTitleRow}
+                onLongPress={() => setDevOptionsVisible(!devOptionsVisible)}
+                delayLongPress={1000}
               >
-                <ThemedText style={styles.debugButtonText}>Database Debug</ThemedText>
-                <ThemedText style={styles.debugButtonSubtext}>Diagnose database issues</ThemedText>
+                <ThemedText style={styles.debugTitle}>Developer Tools</ThemedText>
+                {mockDataStatus?.isSeeded && (
+                  <View style={styles.testDataBadge}>
+                    <ThemedText style={styles.testDataBadgeText}>Test Data Active</ThemedText>
+                  </View>
+                )}
               </TouchableOpacity>
+
+              {mockDataStatus?.isSeeded && (
+                <View style={styles.testDataInfo}>
+                  <ThemedText style={styles.testDataInfoText}>
+                    {mockDataStatus.supplementCount} test supplements, {mockDataStatus.logCount} logs, {mockDataStatus.testResultCount} test results
+                  </ThemedText>
+                </View>
+              )}
+
               <TouchableOpacity
-                style={[styles.debugButton, { marginTop: 8 }]}
-                onPress={() => router.push('/invariant-test' as any)}
+                style={[styles.seedButton, seedingData && styles.buttonDisabled]}
+                onPress={handleSeedData}
+                disabled={seedingData || clearingData}
               >
-                <ThemedText style={styles.debugButtonText}>Invariant Tests</ThemedText>
-                <ThemedText style={styles.debugButtonSubtext}>Test database sanity checks</ThemedText>
+                <ThemedText style={styles.seedButtonText}>
+                  {seedingData ? 'Seeding...' : 'Seed Test Data'}
+                </ThemedText>
+                <ThemedText style={styles.seedButtonSubtext}>
+                  Add 45 days of sample data for testing
+                </ThemedText>
               </TouchableOpacity>
+
+              {mockDataStatus?.isSeeded && (
+                <TouchableOpacity
+                  style={[styles.clearTestButton, { marginTop: 8 }, clearingData && styles.buttonDisabled]}
+                  onPress={handleClearTestData}
+                  disabled={seedingData || clearingData}
+                >
+                  <ThemedText style={styles.clearTestButtonText}>
+                    {clearingData ? 'Clearing...' : 'Clear Test Data Only'}
+                  </ThemedText>
+                  <ThemedText style={styles.clearTestButtonSubtext}>
+                    Remove [Test] data, keep real data
+                  </ThemedText>
+                </TouchableOpacity>
+              )}
+
+              {devOptionsVisible && (
+                <>
+                  <TouchableOpacity
+                    style={[styles.dangerButton, { marginTop: 8 }, clearingData && styles.buttonDisabled]}
+                    onPress={handleClearAllData}
+                    disabled={seedingData || clearingData}
+                  >
+                    <ThemedText style={styles.dangerButtonText}>Clear ALL Data</ThemedText>
+                    <ThemedText style={styles.dangerButtonSubtext}>
+                      Reset entire database (destructive!)
+                    </ThemedText>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.debugButton, { marginTop: 8 }]}
+                    onPress={() => router.push('/database-debug')}
+                  >
+                    <ThemedText style={styles.debugButtonText}>Database Debug</ThemedText>
+                    <ThemedText style={styles.debugButtonSubtext}>Diagnose database issues</ThemedText>
+                  </TouchableOpacity>
+
+                  <TouchableOpacity
+                    style={[styles.debugButton, { marginTop: 8 }]}
+                    onPress={() => router.push('/invariant-test' as any)}
+                  >
+                    <ThemedText style={styles.debugButtonText}>Invariant Tests</ThemedText>
+                    <ThemedText style={styles.debugButtonSubtext}>Test database sanity checks</ThemedText>
+                  </TouchableOpacity>
+                </>
+              )}
+
+              <TouchableOpacity
+                style={[styles.seedButton, { marginTop: 16, backgroundColor: '#5856D6' }, importingSubstances && styles.buttonDisabled]}
+                onPress={handleImportSubstanceDatabase}
+                disabled={importingSubstances}
+              >
+                <ThemedText style={styles.seedButtonText}>
+                  {importingSubstances ? 'Importing...' : 'Import Substance Database'}
+                </ThemedText>
+                <ThemedText style={styles.seedButtonSubtext}>
+                  Load 29 validated substance profiles with PK curves
+                </ThemedText>
+              </TouchableOpacity>
+
+              <View style={styles.backupSection}>
+                <ThemedText style={styles.backupSectionTitle}>Backup & Restore</ThemedText>
+                <View style={styles.backupButtonRow}>
+                  <TouchableOpacity
+                    style={[styles.backupButton, exporting && styles.buttonDisabled]}
+                    onPress={handleExportData}
+                    disabled={exporting || importing}
+                  >
+                    <ThemedText style={styles.backupButtonText}>
+                      {exporting ? 'Exporting...' : 'Export Data'}
+                    </ThemedText>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.backupButton, styles.importButton, importing && styles.buttonDisabled]}
+                    onPress={handleImportData}
+                    disabled={exporting || importing}
+                  >
+                    <ThemedText style={styles.backupButtonText}>
+                      {importing ? 'Importing...' : 'Import Data'}
+                    </ThemedText>
+                  </TouchableOpacity>
+                </View>
+                <ThemedText style={styles.backupHint}>
+                  Export creates a JSON backup. Test data is excluded.
+                </ThemedText>
+              </View>
+
+              <ThemedText style={styles.devHint}>
+                {devOptionsVisible ? 'Long-press title to hide advanced options' : 'Long-press title for more options'}
+              </ThemedText>
             </ThemedView>
 
             {/* Spacer to ensure buttons don't overlap content */}
@@ -395,7 +747,7 @@ export default function SettingsScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#0B1426',
   },
   loadingContainer: {
     flex: 1,
@@ -415,7 +767,7 @@ const styles = StyleSheet.create({
     paddingTop: isVerySmallScreen ? 16 : 20,
     paddingBottom: isVerySmallScreen ? 16 : 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E5EA',
+    borderBottomColor: '#1E2D45',
     marginBottom: isVerySmallScreen ? 16 : 20,
   },
   title: {
@@ -449,7 +801,7 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: 'bold',
     marginBottom: 30,
-    color: '#007AFF',
+    color: '#00D4FF',
     textAlign: 'center',
   },
   timeSelector: {
@@ -471,10 +823,10 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   dropdown: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#1A2540',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#D1D1D6',
+    borderColor: '#2A3550',
     height: isVerySmallScreen ? 140 : isSmallScreen ? 160 : 180,
     width: '100%',
     maxHeight: isVerySmallScreen ? 140 : isSmallScreen ? 160 : 180,
@@ -497,11 +849,11 @@ const styles = StyleSheet.create({
     minHeight: isVerySmallScreen ? 40 : 44,
   },
   dropdownOptionSelected: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#00D4FF',
   },
   dropdownOptionText: {
     fontSize: 16,
-    color: '#000',
+    color: '#E4E6EA',
   },
   dropdownOptionTextSelected: {
     color: 'white',
@@ -509,10 +861,10 @@ const styles = StyleSheet.create({
   },
   ampmToggle: {
     flexDirection: 'row',
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#1A2540',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#D1D1D6',
+    borderColor: '#2A3550',
     padding: 4,
     width: '100%',
     height: isVerySmallScreen ? 60 : 80,
@@ -531,24 +883,24 @@ const styles = StyleSheet.create({
     marginHorizontal: 2,
   },
   ampmButtonSelected: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#00D4FF',
   },
   ampmText: {
     fontSize: 16,
     fontWeight: '500',
-    color: '#000',
+    color: '#E4E6EA',
   },
   ampmTextSelected: {
     color: 'white',
     fontWeight: '600',
   },
   reminderSection: {
-    backgroundColor: '#E8F5E9',
+    backgroundColor: 'rgba(34, 197, 94, 0.08)',
     padding: 16,
     borderRadius: 12,
     marginTop: 20,
     borderWidth: 1,
-    borderColor: '#81C784',
+    borderColor: '#22C55E',
   },
   reminderRow: {
     flexDirection: 'row',
@@ -562,54 +914,54 @@ const styles = StyleSheet.create({
   reminderTitle: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2E7D32',
+    color: '#22C55E',
     marginBottom: 4,
   },
   reminderSubtitle: {
     fontSize: 13,
-    color: '#558B2F',
+    color: '#4ADE80',
     lineHeight: 18,
   },
   infoSection: {
-    backgroundColor: '#F2F2F7',
+    backgroundColor: '#1A2540',
     padding: 20,
     borderRadius: 12,
     marginTop: 20,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#E5E5EA',
+    borderColor: '#2A3550',
   },
   infoTitle: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 12,
-    color: '#000',
+    color: '#E4E6EA',
     textAlign: 'center',
   },
   infoText: {
     fontSize: 14,
     marginBottom: 8,
-    color: '#333',
+    color: '#8B939A',
     lineHeight: 20,
   },
   notifDebugSection: {
-    backgroundColor: '#E8F4FD',
+    backgroundColor: 'rgba(0, 212, 255, 0.06)',
     padding: 20,
     borderRadius: 12,
     marginTop: 20,
     marginBottom: 20,
     borderWidth: 1,
-    borderColor: '#007AFF',
+    borderColor: '#00D4FF',
   },
   notifDebugTitle: {
     fontSize: 16,
     fontWeight: '600',
     marginBottom: 12,
-    color: '#0051A8',
+    color: '#00D4FF',
     textAlign: 'center',
   },
   notifTestButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#00D4FF',
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderRadius: 8,
@@ -626,7 +978,7 @@ const styles = StyleSheet.create({
     color: 'rgba(255,255,255,0.8)',
   },
   debugSection: {
-    backgroundColor: '#FFF3CD',
+    backgroundColor: 'rgba(255, 193, 7, 0.06)',
     padding: 20,
     borderRadius: 12,
     marginTop: 20,
@@ -634,12 +986,140 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#FFC107',
   },
+  debugTitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 12,
+    gap: 8,
+  },
   debugTitle: {
     fontSize: 16,
     fontWeight: '600',
-    marginBottom: 12,
-    color: '#856404',
+    color: '#FFC107',
     textAlign: 'center',
+  },
+  testDataBadge: {
+    backgroundColor: '#34C759',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  testDataBadgeText: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  testDataInfo: {
+    backgroundColor: 'rgba(52, 199, 89, 0.1)',
+    padding: 8,
+    borderRadius: 6,
+    marginBottom: 12,
+  },
+  testDataInfoText: {
+    fontSize: 12,
+    color: '#4ADE80',
+    textAlign: 'center',
+  },
+  seedButton: {
+    backgroundColor: '#34C759',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  seedButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  seedButtonSubtext: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  clearTestButton: {
+    backgroundColor: '#FF9500',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  clearTestButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  clearTestButtonSubtext: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  dangerButton: {
+    backgroundColor: '#FF3B30',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  dangerButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#FFFFFF',
+    marginBottom: 2,
+  },
+  dangerButtonSubtext: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+  },
+  buttonDisabled: {
+    opacity: 0.5,
+  },
+  devHint: {
+    fontSize: 11,
+    color: '#8B939A',
+    textAlign: 'center',
+    marginTop: 12,
+    fontStyle: 'italic',
+  },
+  backupSection: {
+    marginTop: 16,
+    paddingTop: 16,
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(0,0,0,0.1)',
+  },
+  backupSectionTitle: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFC107',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  backupButtonRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  backupButton: {
+    flex: 1,
+    backgroundColor: '#00D4FF',
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  importButton: {
+    backgroundColor: '#5856D6',
+  },
+  backupButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  backupHint: {
+    fontSize: 11,
+    color: '#8B939A',
+    textAlign: 'center',
+    marginTop: 8,
   },
   debugButton: {
     backgroundColor: '#FFC107',
@@ -651,12 +1131,12 @@ const styles = StyleSheet.create({
   debugButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#212529',
+    color: '#1C2432',
     marginBottom: 2,
   },
   debugButtonSubtext: {
     fontSize: 12,
-    color: '#6C757D',
+    color: '#4A5568',
   },
   bottomSpacer: {
     height: isVerySmallScreen ? 80 : isSmallScreen ? 100 : 120,
@@ -668,9 +1148,9 @@ const styles = StyleSheet.create({
     right: isVerySmallScreen ? 16 : 20,
     paddingTop: 16,
     paddingBottom: Platform.OS === 'ios' ? 20 : 16,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#0B1426',
     borderTopWidth: 1,
-    borderTopColor: '#E5E5EA',
+    borderTopColor: '#1E2D45',
     gap: isVerySmallScreen ? 8 : 12,
     elevation: Platform.OS === 'android' ? 4 : 0,
     shadowColor: Platform.OS === 'ios' ? '#000' : undefined,
@@ -679,7 +1159,7 @@ const styles = StyleSheet.create({
     shadowRadius: Platform.OS === 'ios' ? 4 : undefined,
   },
   saveButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#00D4FF',
     paddingVertical: 16,
     borderRadius: 8,
     alignItems: 'center',

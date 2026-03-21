@@ -26,10 +26,10 @@ export default function HelpScreen() {
         '• Memory: Match card pairs',
         '• Connections: Connect dots as a tree',
         '• N-Back: Remember sequences',
-        '• Pattern Matcher: Match a hidden pattern',
-        '• 8-Tile Puzzle: Unscramble a sliding tile puzzle',
-        '• Rock Dodger: Avoid obstacles',
-        '• Stroop: Challenge both hemispheres of your brain',
+        '• Deduction: Match a hidden pattern',
+        '• Planning: Unscramble a sliding tile puzzle',
+        '• Coordination: Avoid obstacles',
+        '• Coherence: Challenge both hemispheres of your brain',
         '• Questionnaire/Mood: Log your mood throughout the day',
         'Run "All 9" to complete the full test battery at once.',
       ],
@@ -97,6 +97,9 @@ export default function HelpScreen() {
           style={styles.homeButton}
           onPress={handleHomePress}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Go home"
+          testID="btn-help-home"
         >
           <Ionicons name="home-outline" size={24} color={tintColor} />
         </TouchableOpacity>
@@ -144,7 +147,12 @@ export default function HelpScreen() {
           <View style={styles.versionInfo}>
             <ThemedText style={styles.versionText}>Track. Test. Discover.</ThemedText>
             <ThemedText style={styles.versionText}>GrayMeter v1.0 Copyright 2025 Steelman Inc.</ThemedText>
-            <TouchableOpacity onPress={() => Linking.openURL('mailto:info@steelmannet.com')}>
+            <TouchableOpacity
+              onPress={() => Linking.openURL('mailto:info@steelmannet.com')}
+              accessibilityRole="link"
+              accessibilityLabel="Send email to support"
+              testID="link-email-support"
+            >
               <ThemedText style={[styles.versionText, { color: tintColor, textDecorationLine: 'underline' }]}>Click here to send us an email</ThemedText>
             </TouchableOpacity>
           </View>

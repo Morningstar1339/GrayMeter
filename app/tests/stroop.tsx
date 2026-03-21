@@ -297,7 +297,7 @@ export default function StroopTestScreen() {
             </ThemedView>
           )}
 
-          <ThemedText type="title" style={styles.readyTitle}>Stroop Test</ThemedText>
+          <ThemedText type="title" style={styles.readyTitle}>Coherence Test</ThemedText>
 
           <ThemedText style={styles.description}>
             Color names appear with a mismatched ink color. If words appear as answer options, select the word that describes the color of the text. If colored buttons appear as options, select the color that the word describes.
@@ -334,13 +334,16 @@ export default function StroopTestScreen() {
 
           <ThemedText style={styles.trialInfo}>{TOTAL_TRIALS} trials | ~45 seconds</ThemedText>
           
-          <TouchableOpacity 
-            style={[styles.startButton, { backgroundColor: tintColor }]} 
+          <TouchableOpacity
+            style={[styles.startButton, { backgroundColor: tintColor }]}
             onPress={startGame}
+            accessibilityRole="button"
+            accessibilityLabel="Start Stroop test"
+            testID="btn-stroop-start"
           >
             <ThemedText style={styles.startButtonText}>Start Test</ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Back to menu" testID="btn-stroop-back">
             <ThemedText style={styles.backButtonText}>Back to Menu</ThemedText>
           </TouchableOpacity>
         </ScrollView>
@@ -387,21 +390,27 @@ export default function StroopTestScreen() {
           </View>
           
           {params.sequence === 'all-nine' ? (
-            <TouchableOpacity 
-              style={[styles.startButton, { backgroundColor: tintColor }]} 
+            <TouchableOpacity
+              style={[styles.startButton, { backgroundColor: tintColor }]}
               onPress={handleNextTestOrFinish}
+              accessibilityRole="button"
+              accessibilityLabel="Finish all tests"
+              testID="btn-stroop-finish"
             >
               <ThemedText style={styles.startButtonText}>Finish All Tests</ThemedText>
             </TouchableOpacity>
           ) : (
             <>
-              <TouchableOpacity 
-                style={[styles.startButton, { backgroundColor: tintColor }]} 
+              <TouchableOpacity
+                style={[styles.startButton, { backgroundColor: tintColor }]}
                 onPress={handlePlayAgain}
+                accessibilityRole="button"
+                accessibilityLabel="Play again"
+                testID="btn-stroop-play-again"
               >
                 <ThemedText style={styles.startButtonText}>Play Again</ThemedText>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+              <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Back to menu" testID="btn-stroop-back-menu">
                 <ThemedText style={styles.backButtonText}>Back to Menu</ThemedText>
               </TouchableOpacity>
             </>
@@ -418,6 +427,9 @@ export default function StroopTestScreen() {
           style={styles.bannerBackButton}
           onPress={handleExitTest}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Exit test"
+          testID="btn-stroop-exit-playing"
         >
           <Ionicons name="arrow-back" size={20} color={tintColor} />
         </TouchableOpacity>
@@ -452,6 +464,9 @@ export default function StroopTestScreen() {
                   currentTrialType === 'color' && { backgroundColor: color.hex }
                 ]}
                 onPress={() => handleColorPress(color.name)}
+                accessibilityRole="button"
+                accessibilityLabel={`Select ${color.name.toLowerCase()}`}
+                testID={`btn-stroop-color-${color.name.toLowerCase()}`}
               >
                 {currentTrialType === 'word' ? (
                   <ThemedText style={styles.colorButtonTextPlain}>
@@ -471,6 +486,9 @@ export default function StroopTestScreen() {
                   currentTrialType === 'color' && { backgroundColor: color.hex }
                 ]}
                 onPress={() => handleColorPress(color.name)}
+                accessibilityRole="button"
+                accessibilityLabel={`Select ${color.name.toLowerCase()}`}
+                testID={`btn-stroop-color-${color.name.toLowerCase()}`}
               >
                 {currentTrialType === 'word' ? (
                   <ThemedText style={styles.colorButtonTextPlain}>
@@ -490,6 +508,9 @@ export default function StroopTestScreen() {
                   currentTrialType === 'color' && { backgroundColor: color.hex }
                 ]}
                 onPress={() => handleColorPress(color.name)}
+                accessibilityRole="button"
+                accessibilityLabel={`Select ${color.name.toLowerCase()}`}
+                testID={`btn-stroop-color-${color.name.toLowerCase()}`}
               >
                 {currentTrialType === 'word' ? (
                   <ThemedText style={styles.colorButtonTextPlain}>
@@ -621,7 +642,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#E0E0E0',
     borderRadius: 6,
     borderWidth: 2,
-    borderColor: '#007AFF',
+    borderColor: '#00D4FF',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -642,7 +663,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     backgroundColor: '#E53935',
     borderWidth: 2,
-    borderColor: '#007AFF',
+    borderColor: '#00D4FF',
     alignItems: 'center',
     justifyContent: 'center',
   },

@@ -79,7 +79,7 @@ const DefaultErrorFallback: React.FC<ErrorFallbackProps> = ({ error, resetError 
           </View>
         )}
         
-        <TouchableOpacity style={styles.retryButton} onPress={resetError}>
+        <TouchableOpacity style={styles.retryButton} onPress={resetError} accessibilityRole="button" accessibilityLabel="Try again" testID="btn-error-retry">
           <Ionicons name="refresh-outline" size={20} color="white" />
           <ThemedText style={styles.retryButtonText}>Try Again</ThemedText>
         </TouchableOpacity>
@@ -144,7 +144,7 @@ const styles = StyleSheet.create({
     opacity: 0.7,
   },
   retryButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#00D4FF',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,

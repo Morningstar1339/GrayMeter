@@ -1,4 +1,5 @@
 import { withDatabase, isDatabaseInitialized } from './database';
+import { cancelNotificationsByRelatedId } from './notifications';
 
 export interface Schedule {
   id: number;
@@ -290,6 +291,51 @@ export const toggleScheduleEnabled = async (scheduleId: number, enabled: boolean
   }
 
   return await withDatabase(async (db) => {
+    // If disabling, cancel associated notifications
+    if (!enabled) {
+      try {
+        // Fetch the schedule first to get its type for notification cancellation
+        const schedule = await db.getFirstAsync(
+          'SELECT * FROM schedules WHERE id = ?', 
+          [scheduleId]
+        ) as Schedule | null;
+        
+        if (schedule) {
+          // Cancel associated notifications based on schedule type
+          let notificationType: 'supplement_reminder' | 'study_protocol' | 'activity_reminder' | 'sleep_reminder' | 'daily_review_reminder';
+          
+          switch (schedule.schedule_type) {
+            case 'supplement':
+              notificationType = 'supplement_reminder';
+              break;
+            case 'cognitive_test':
+            case 'questionnaire':
+              notificationType = 'study_protocol';
+              break;
+            case 'activity':
+              notificationType = 'activity_reminder';
+              break;
+            case 'sleep':
+              notificationType = 'sleep_reminder';
+              break;
+            case 'daily_review':
+              notificationType = 'daily_review_reminder';
+              break;
+            default:
+              console.log(`Unknown schedule type for notification cancellation: ${schedule.schedule_type}`);
+              notificationType = 'supplement_reminder'; // Default fallback
+          }
+          
+          await cancelNotificationsByRelatedId(notificationType, scheduleId);
+          console.log(`Cancelled ${notificationType} notifications for disabled schedule ${scheduleId}`);
+        }
+      } catch (notificationError) {
+        console.log('Failed to cancel notifications for disabled schedule:', notificationError);
+        // Continue with the update even if notification cancellation fails
+      }
+    }
+    
+    // Update the schedule enabled status
     await db.runAsync(
       'UPDATE schedules SET enabled = ? WHERE id = ?',
       [enabled ? 1 : 0, scheduleId]
@@ -307,6 +353,48 @@ export const deleteSchedule = async (scheduleId: number): Promise<void> => {
   }
 
   return await withDatabase(async (db) => {
+    // Fetch the schedule first to get its type for notification cancellation
+    const schedule = await db.getFirstAsync(
+      'SELECT * FROM schedules WHERE id = ?', 
+      [scheduleId]
+    ) as Schedule | null;
+    
+    if (schedule) {
+      try {
+        // Cancel associated notifications based on schedule type
+        let notificationType: 'supplement_reminder' | 'study_protocol' | 'activity_reminder' | 'sleep_reminder' | 'daily_review_reminder';
+        
+        switch (schedule.schedule_type) {
+          case 'supplement':
+            notificationType = 'supplement_reminder';
+            break;
+          case 'cognitive_test':
+          case 'questionnaire':
+            notificationType = 'study_protocol';
+            break;
+          case 'activity':
+            notificationType = 'activity_reminder';
+            break;
+          case 'sleep':
+            notificationType = 'sleep_reminder';
+            break;
+          case 'daily_review':
+            notificationType = 'daily_review_reminder';
+            break;
+          default:
+            console.log(`Unknown schedule type for notification cancellation: ${schedule.schedule_type}`);
+            notificationType = 'supplement_reminder'; // Default fallback
+        }
+        
+        await cancelNotificationsByRelatedId(notificationType, scheduleId);
+        console.log(`Cancelled ${notificationType} notifications for schedule ${scheduleId}`);
+      } catch (notificationError) {
+        console.log('Failed to cancel notifications for deleted schedule:', notificationError);
+        // Continue with deletion even if notification cancellation fails
+      }
+    }
+    
+    // Delete the schedule record
     await db.runAsync('DELETE FROM schedules WHERE id = ?', [scheduleId]);
   }, 'delete schedule');
 };

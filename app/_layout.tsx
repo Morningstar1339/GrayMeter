@@ -15,7 +15,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { initializeDatabase, resetDatabaseState, initializeDatabaseWithRetry, checkDatabaseHealth, getDatabase } from '@/database/database';
 import { SleepPrompt } from '@/components/sleep-prompt';
 import { shouldPromptForSleep, isOverdueForSleepLog, isMorningWithoutSleepLog } from '@/database/sleep';
-import { addNotificationResponseListener, scheduleSleepReminder, requestNotificationPermissions } from '@/database/notifications';
+import { addNotificationResponseListener, scheduleSleepReminder, requestNotificationPermissions, restoreScheduledNotifications } from '@/database/notifications';
 
 export const unstable_settings = {
   anchor: '(tabs)',
@@ -130,12 +130,27 @@ export default function RootLayout() {
     };
   }, []);
 
-  // App state change logging
+  // App state change handling - restore notifications when app comes to foreground
   useEffect(() => {
-    const subscription = RNAppState.addEventListener('change', (nextAppState) => {
-      console.log('🔄 APP STATE CHANGED:', nextAppState);
-      // Check database state when app state changes
+    let previousState = RNAppState.currentState;
+    
+    const subscription = RNAppState.addEventListener('change', async (nextAppState) => {
+      console.log('🔄 APP STATE CHANGED:', previousState, '->', nextAppState);
       console.log('DB status after state change:', checkDatabaseHealth());
+      
+      if (previousState.match(/inactive|background/) && nextAppState === 'active') {
+        console.log('🔔 App came to foreground - restoring notifications...');
+        try {
+          const restored = await restoreScheduledNotifications();
+          if (restored > 0) {
+            console.log(`🔔 Restored ${restored} notifications after foreground`);
+          }
+        } catch (error) {
+          console.error('Failed to restore notifications on foreground:', error);
+        }
+      }
+      
+      previousState = nextAppState;
     });
     
     return () => subscription.remove();
@@ -161,14 +176,17 @@ export default function RootLayout() {
         
         const isMorningNoLog = await isMorningWithoutSleepLog();
         const shouldPrompt = await shouldPromptForSleep();
-        
-        if (isMorningNoLog || shouldPrompt) {
+
+        if (shouldPrompt && (isMorningNoLog || await isOverdueForSleepLog())) {
           const overdue = await isOverdueForSleepLog();
           setIsOverdueReminder(overdue || isMorningNoLog);
-          setTimeout(() => setShowSleepPrompt(true), 500);
+          setTimeout(() => setShowSleepPrompt(true), 2000);
         }
         
         await scheduleSleepReminder();
+        
+        const restored = await restoreScheduledNotifications();
+        console.log(`Restored ${restored} notifications on app start`);
       } catch (error) {
         console.error('Failed to initialize notifications:', error);
       }
@@ -252,8 +270,8 @@ export default function RootLayout() {
     return (
       <SafeAreaProvider>
         <View style={styles.centerContainer}>
-          <ActivityIndicator size="large" color="#007AFF" />
-          <Text style={styles.loadingText}>Initializing NeuroSync...</Text>
+          <ActivityIndicator size="large" color="#00D4FF" />
+          <Text style={styles.loadingText}>Initializing GrayMeter...</Text>
           <Text style={styles.subText}>Setting up database</Text>
         </View>
       </SafeAreaProvider>
@@ -341,7 +359,7 @@ export default function RootLayout() {
           <Stack.Screen name="daily-review" options={{ headerShown: false }} />
           <Stack.Screen name="modal" options={{ presentation: 'modal', title: 'Modal' }} />
         </Stack>
-        <StatusBar style="auto" />
+        <StatusBar style="light" />
         <SleepPrompt
           visible={showSleepPrompt}
           onClose={() => setShowSleepPrompt(false)}
@@ -505,18 +523,18 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
-    backgroundColor: '#ffffff',
+    backgroundColor: '#0B1426',
   },
   loadingText: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#000000',
+    color: '#E4E6EA',
     marginTop: 16,
     textAlign: 'center',
   },
   subText: {
     fontSize: 14,
-    color: '#666666',
+    color: '#8B939A',
     marginTop: 8,
     textAlign: 'center',
   },
@@ -529,14 +547,14 @@ const styles = StyleSheet.create({
   },
   errorMessage: {
     fontSize: 14,
-    color: '#666666',
+    color: '#8B939A',
     textAlign: 'center',
     marginBottom: 16,
     paddingHorizontal: 20,
   },
   buildTypeText: {
     fontSize: 12,
-    color: '#999999',
+    color: '#5a6370',
     textAlign: 'center',
     marginBottom: 24,
     fontFamily: 'monospace',
@@ -548,7 +566,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   retryButton: {
-    backgroundColor: '#007AFF',
+    backgroundColor: '#00D4FF',
     paddingHorizontal: 24,
     paddingVertical: 12,
     borderRadius: 8,
@@ -566,7 +584,7 @@ const styles = StyleSheet.create({
   },
   helpText: {
     fontSize: 12,
-    color: '#999999',
+    color: '#8B939A',
     textAlign: 'center',
     marginTop: 16,
   },

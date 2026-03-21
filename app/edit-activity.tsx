@@ -123,14 +123,17 @@ export default function EditActivityScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
       <ThemedView style={styles.header}>
-        <TouchableOpacity onPress={handleCancel} style={styles.cancelButton}>
+        <TouchableOpacity onPress={handleCancel} style={styles.cancelButton} accessibilityRole="button" accessibilityLabel="Cancel" testID="btn-edit-activity-cancel">
           <ThemedText style={styles.cancelText}>Cancel</ThemedText>
         </TouchableOpacity>
         <ThemedText type="title" style={styles.title}>Edit Activity</ThemedText>
-        <TouchableOpacity 
-          onPress={handleSave} 
+        <TouchableOpacity
+          onPress={handleSave}
           style={[styles.saveButton, { backgroundColor: tintColor }]}
           disabled={isSubmitting}
+          accessibilityRole="button"
+          accessibilityLabel="Save activity"
+          testID="btn-edit-activity-save"
         >
           <ThemedText style={styles.saveText}>Save</ThemedText>
         </TouchableOpacity>
@@ -147,6 +150,8 @@ export default function EditActivityScreen() {
             placeholderTextColor="#8E8E93"
             autoCapitalize="words"
             maxLength={50}
+            accessibilityLabel="Activity name"
+            testID="input-edit-activity-name"
           />
         </ThemedView>
 
@@ -161,6 +166,8 @@ export default function EditActivityScreen() {
               placeholderTextColor="#8E8E93"
               keyboardType="numeric"
               maxLength={10}
+              accessibilityLabel="Default value"
+              testID="input-edit-activity-default-value"
             />
             <TextInput
               style={[styles.unitInput, { borderColor: tintColor + '30', color: textColor }]}
@@ -170,6 +177,8 @@ export default function EditActivityScreen() {
               placeholderTextColor="#8E8E93"
               autoCapitalize="none"
               maxLength={20}
+              accessibilityLabel="Activity unit"
+              testID="input-edit-activity-unit"
             />
           </View>
         </ThemedView>
@@ -185,6 +194,9 @@ export default function EditActivityScreen() {
                   selectedIcon === icon && { backgroundColor: selectedColor }
                 ]}
                 onPress={() => setSelectedIcon(icon)}
+                accessibilityRole="button"
+                accessibilityLabel={`Select ${icon} icon`}
+                testID={`btn-activity-icon-${icon}`}
               >
                 <Ionicons 
                   name={icon as any} 
@@ -208,6 +220,9 @@ export default function EditActivityScreen() {
                   selectedColor === color && styles.selectedColorButton
                 ]}
                 onPress={() => setSelectedColor(color)}
+                accessibilityRole="button"
+                accessibilityLabel={`Select color ${color}`}
+                testID={`btn-activity-color-${color.replace('#','')}`}
               >
                 {selectedColor === color && (
                   <Ionicons name="checkmark" size={18} color={getContrastingTextColor(color)} />
@@ -236,7 +251,7 @@ export default function EditActivityScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete}>
+        <TouchableOpacity style={styles.deleteButton} onPress={handleDelete} accessibilityRole="button" accessibilityLabel="Delete activity" testID="btn-delete-activity">
           <Ionicons name="trash-outline" size={20} color="#FF3B30" />
           <ThemedText style={styles.deleteText}>Delete Activity</ThemedText>
         </TouchableOpacity>

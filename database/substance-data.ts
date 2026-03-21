@@ -1,0 +1,1329 @@
+import { ImportedSubstance } from './pk-curves';
+
+export const VALIDATED_SUBSTANCES: ImportedSubstance[] = [
+  {
+    "name": "Caffeine",
+    "names": [
+      "caffeine",
+      "1,3,7-trimethylxanthine",
+      "guarana",
+      "coffee extract",
+      "caffeine anhydrous",
+      "coffee",
+      "guarana extract",
+      "yerba mate",
+      "energy drinks",
+      "Caffeine",
+      "Guarana",
+      "Coffee",
+      "Green Tea Extract",
+      "tea extract",
+      "yerba mate extract"
+    ],
+    "category": "food_grade",
+    "bioavailability": 0.99,
+    "tmax_hours": 0.75,
+    "half_life_hours": 5,
+    "elimination_type": "first_order",
+    "tolerance_profile": "moderate",
+    "withdrawal_profile": "moderate",
+    "pk_model": "bateman",
+    "citations": [
+      "Fredholm et al. 1999 Pharmacol Rev",
+      "Nehlig 2018 Neurosci Biobehav Rev"
+    ],
+    "confidence_tier": 1,
+    "pk_params": {
+      "ka": 1.33,
+      "ke": 0.139,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 1.33,
+          "ke": 0.139,
+          "magnitude": 1
+        }
+      },
+      {
+        "type": "withdrawal",
+        "params": {
+          "peak_day": 2,
+          "resolution_days": 7,
+          "magnitude": 0.3
+        }
+      }
+    ]
+  },
+  {
+    "name": "Alcohol",
+    "names": [
+      "alcohol",
+      "ethanol",
+      "ethyl alcohol",
+      "beer",
+      "wine",
+      "spirits",
+      "liquor",
+      "Alcohol",
+      "Ethanol",
+      "EtOH",
+      "etoh"
+    ],
+    "category": "food_grade",
+    "bioavailability": 0.8,
+    "tmax_hours": 0.5,
+    "half_life_hours": null,
+    "elimination_type": "zero_order",
+    "tolerance_profile": "high",
+    "withdrawal_profile": "high",
+    "pk_model": "linear",
+    "citations": [
+      "Cederbaum 2012 Clin Liver Dis",
+      "Jones 2010 Forensic Sci Rev",
+      "Norberg et al. 2003 Alcohol Alcohol",
+      "Holford 1987 Clin Pharmacokinet"
+    ],
+    "confidence_tier": 2,
+    "pk_params": {
+      "onset": 0.5,
+      "rate": 0.015,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "linear",
+        "params": {
+          "onset": 0.5,
+          "rate": 0.015,
+          "magnitude": 1
+        }
+      },
+      {
+        "type": "withdrawal",
+        "params": {
+          "peak_day": 2,
+          "resolution_days": 7,
+          "magnitude": 0.3
+        }
+      }
+    ]
+  },
+  {
+    "name": "Melatonin",
+    "names": [
+      "melatonin",
+      "n-acetyl-5-methoxytryptamine",
+      "N-acetyl-5-methoxytryptamine",
+      "Circadin",
+      "Melatonin"
+    ],
+    "category": "food_grade",
+    "bioavailability": 0.15,
+    "tmax_hours": 0.75,
+    "half_life_hours": 0.8,
+    "elimination_type": "first_order",
+    "tolerance_profile": "low",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Harpsoe et al. 2015 Clin Pharmacokinet",
+      "Brzezinski 1997 N Engl J Med",
+      "Di et al. 2017 Clin Pharmacokinet",
+      "Di et al. 1997 Clin Pharmacokinet",
+      "Fourtillan et al. 2000",
+      "Claustrat et al. 2005 Sleep Med Rev"
+    ],
+    "confidence_tier": 1,
+    "pk_params": {
+      "ka": 2.6,
+      "ke": 0.866,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 2.6,
+          "ke": 0.866,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Nicotine",
+    "names": [
+      "nicotine",
+      "nicotine gum",
+      "nicotine patch",
+      "nicotine lozenge",
+      "(S)-nicotine",
+      "tobacco alkaloid",
+      "vape nicotine",
+      "Nicotine",
+      "3-(1-methyl-2-pyrrolidinyl)pyridine",
+      "s-nicotine"
+    ],
+    "category": "otc",
+    "bioavailability": 0.3,
+    "tmax_hours": 0.5,
+    "half_life_hours": 2,
+    "elimination_type": "first_order",
+    "tolerance_profile": "high",
+    "withdrawal_profile": "high",
+    "pk_model": "bateman",
+    "citations": [
+      "Benowitz et al. 2009 Clin Pharmacol Ther",
+      "Benowitz 2009 N Engl J Med",
+      "Hukkanen et al. 2005 Pharmacol Rev",
+      "Benowitz et al. 1988 Clin Pharmacol Ther"
+    ],
+    "confidence_tier": 2,
+    "pk_params": {
+      "ka": 2,
+      "ke": 0.347,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 2,
+          "ke": 0.347,
+          "magnitude": 1
+        }
+      },
+      {
+        "type": "withdrawal",
+        "params": {
+          "peak_day": 2,
+          "resolution_days": 7,
+          "magnitude": 0.3
+        }
+      }
+    ]
+  },
+  {
+    "name": "Modafinil",
+    "names": [
+      "modafinil",
+      "provigil",
+      "alertec",
+      "modavigil",
+      "(±)-modafinil",
+      "Provigil",
+      "Modavigil",
+      "Modalert",
+      "Modafinil",
+      "2-[(diphenylmethyl)sulfinyl]acetamide"
+    ],
+    "category": "prescription",
+    "bioavailability": 0.8,
+    "tmax_hours": 2.75,
+    "half_life_hours": 14,
+    "elimination_type": "first_order",
+    "tolerance_profile": "low",
+    "withdrawal_profile": "low",
+    "pk_model": "bateman",
+    "citations": [
+      "Robertson & Hellriegel 2003 Clin Pharmacokinet",
+      "Wong et al. 1999 J Clin Pharmacol",
+      "Robertson et al. 2003 Clin Pharmacokinet",
+      "Wong et al. 1999"
+    ],
+    "confidence_tier": 1,
+    "pk_params": {
+      "ka": 0.36,
+      "ke": 0.05,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.36,
+          "ke": 0.05,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Adderall",
+    "names": [
+      "adderall",
+      "amphetamine",
+      "mixed amphetamine salts",
+      "dextroamphetamine",
+      "Adderall",
+      "amphetamine-dextroamphetamine",
+      "levoamphetamine",
+      "Amphetamine mixed salts",
+      "D-Amphetamine"
+    ],
+    "category": "schedule_ii",
+    "bioavailability": 0.75,
+    "tmax_hours": 3,
+    "half_life_hours": 10.5,
+    "elimination_type": "first_order",
+    "tolerance_profile": "high",
+    "withdrawal_profile": "moderate",
+    "pk_model": "bateman",
+    "citations": [
+      "Heal et al. 2013 CNS Drugs",
+      "FDA Adderall IR label",
+      "Patrick et al. 2007 Clin Ther",
+      "Adderall XR Prescribing Information",
+      "Crom et al. 2000",
+      "Adderall FDA label"
+    ],
+    "confidence_tier": 1,
+    "pk_params": {
+      "ka": 0.33,
+      "ke": 0.066,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.33,
+          "ke": 0.066,
+          "magnitude": 1
+        }
+      },
+      {
+        "type": "withdrawal",
+        "params": {
+          "peak_day": 2,
+          "resolution_days": 7,
+          "magnitude": 0.3
+        }
+      }
+    ]
+  },
+  {
+    "name": "Creatine",
+    "names": [
+      "creatine",
+      "creatine monohydrate",
+      "creatine hcl",
+      "creatine HCl",
+      "creatine ethyl ester",
+      "N-(aminoiminomethyl)-N-methylglycine",
+      "Creatine Monohydrate",
+      "Creatine HCL"
+    ],
+    "category": "food_grade",
+    "bioavailability": 0.99,
+    "tmax_hours": 1.5,
+    "half_life_hours": 3,
+    "elimination_type": "first_order",
+    "tolerance_profile": "none",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Persky & Brazeau 2001 Pharmacol Rev",
+      "Harris et al. 1992 Clin Sci (Lond)",
+      "Persky & Rawson 2007 Amino Acids",
+      "Jäger et al. 2011",
+      "Persky et al. 2003"
+    ],
+    "confidence_tier": 1,
+    "pk_params": {
+      "ka": 0.69,
+      "ke": 0.231,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.69,
+          "ke": 0.231,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Rhodiola Rosea",
+    "names": [
+      "rhodiola rosea",
+      "rhodiola",
+      "golden root",
+      "arctic root",
+      "rosavin",
+      "salidroside",
+      "Rhodiola Rosea",
+      "Golden Root",
+      "Arctic Root",
+      "Salidroside"
+    ],
+    "category": "food_grade",
+    "bioavailability": 0.4,
+    "tmax_hours": 1.5,
+    "half_life_hours": 3,
+    "elimination_type": "first_order",
+    "tolerance_profile": "low",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Panossian & Wikman 2010 Phytomedicine",
+      "Panossian et al. 2010 Phytomedicine",
+      "Tolonen et al. 2003 Planta Med",
+      "Spasov et al. 2000",
+      "Panossian et al. 2010"
+    ],
+    "confidence_tier": 1,
+    "pk_params": {
+      "ka": 0.69,
+      "ke": 0.231,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.69,
+          "ke": 0.231,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Alpha-GPC",
+    "names": [
+      "alpha-gpc",
+      "alpha-glycerylphosphorylcholine",
+      "choline alfoscerate",
+      "alpha-GPC",
+      "α-glycerophosphocholine",
+      "L-alpha-glycerylphosphorylcholine",
+      "Alpha-GPC",
+      "L-Alpha glycerylphosphorylcholine",
+      "Choline Alfoscerate",
+      "l-alpha-glycerylphosphorylcholine"
+    ],
+    "category": "food_grade",
+    "bioavailability": 0.6,
+    "tmax_hours": 1.5,
+    "half_life_hours": 4,
+    "elimination_type": "first_order",
+    "tolerance_profile": "low",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Gatti et al. 1992 Clin Ther",
+      "Parnetti et al. 2001 Mech Ageing Dev",
+      "Traini et al. 2013 Clin Ther",
+      "Gatti et al. 1992"
+    ],
+    "confidence_tier": 1,
+    "pk_params": {
+      "ka": 0.67,
+      "ke": 0.173,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.67,
+          "ke": 0.173,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Piracetam",
+    "names": [
+      "piracetam",
+      "nootropil",
+      "lucetam",
+      "2-oxo-1-pyrrolidine acetamide",
+      "Nootropil",
+      "Piracetam"
+    ],
+    "category": "untested",
+    "bioavailability": 1,
+    "tmax_hours": 1,
+    "half_life_hours": 5,
+    "elimination_type": "first_order",
+    "tolerance_profile": "low",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Winblad 2005 CNS Drug Rev",
+      "Müller et al. 1997 Clin Pharmacokinet",
+      "Winblad 2005 CNS Drugs",
+      "Gouliaev et al. 1994",
+      "Gouliaev et al. 1994 Brain Res Rev"
+    ],
+    "confidence_tier": 1,
+    "pk_params": {
+      "ka": 1,
+      "ke": 0.139,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 1,
+          "ke": 0.139,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Phenylpiracetam",
+    "names": [
+      "phenylpiracetam",
+      "phenotropil",
+      "carphedon",
+      "Phenotropil",
+      "Carphedon",
+      "4-phenylpiracetam",
+      "fonturacetam",
+      "Phenylpiracetam"
+    ],
+    "category": "untested",
+    "bioavailability": 1,
+    "tmax_hours": 1,
+    "half_life_hours": 3.8,
+    "elimination_type": "first_order",
+    "tolerance_profile": "moderate",
+    "withdrawal_profile": "low",
+    "pk_model": "bateman",
+    "citations": [
+      "Zvejniece et al. 2011 Pharmacol Biochem Behav",
+      "Zvejniece et al. 2011 CNS Neurosci Ther",
+      "Russian drug monographs (limited English PK)",
+      "Malykh 2010"
+    ],
+    "confidence_tier": 2,
+    "pk_params": {
+      "ka": 1,
+      "ke": 0.182,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 1,
+          "ke": 0.182,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Pramiracetam",
+    "names": [
+      "pramiracetam",
+      "pramistar",
+      "neupramir",
+      "Pramistar",
+      "N-[2-(diisopropylamino)ethyl]-2-oxo-1-pyrrolidineacetamide",
+      "Pramiracetam",
+      "n-(2-(diisopropylamino)ethyl)-2-oxo-1-pyrrolidineacetamide"
+    ],
+    "category": "untested",
+    "bioavailability": 0.98,
+    "tmax_hours": 2,
+    "half_life_hours": 5,
+    "elimination_type": "first_order",
+    "tolerance_profile": "low",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Mauri et al. 1994 Clin Neuropharmacol",
+      "Nicholson 1990 Psychopharmacology (Berl)",
+      "Drug monographs (limited PK)",
+      "Auteri et al. 1992"
+    ],
+    "confidence_tier": 2,
+    "pk_params": {
+      "ka": 0.5,
+      "ke": 0.139,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.5,
+          "ke": 0.139,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Acetyl-L-Carnitine",
+    "names": [
+      "acetyl-l-carnitine",
+      "alcar",
+      "levacecarnine",
+      "acetyl-L-carnitine",
+      "ALCAR",
+      "acetylcarnitine",
+      "(R)-3-acetylcarnitine",
+      "Acetyl-L-Carnitine"
+    ],
+    "category": "food_grade",
+    "bioavailability": 0.16,
+    "tmax_hours": 3,
+    "half_life_hours": 4,
+    "elimination_type": "first_order",
+    "tolerance_profile": "low",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Parnetti et al. 2007 Curr Med Res Opin",
+      "Evans & Fornasini 2003 Clin Pharmacokinet",
+      "Pettegrew et al. 2000 Am J Clin Nutr",
+      "Cao et al. 2009"
+    ],
+    "confidence_tier": 2,
+    "pk_params": {
+      "ka": 0.52,
+      "ke": 0.173,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.52,
+          "ke": 0.173,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Tyrosine",
+    "names": [
+      "tyrosine",
+      "l-tyrosine",
+      "n-acetyl-l-tyrosine",
+      "nalt",
+      "L-tyrosine",
+      "N-acetyl-L-tyrosine",
+      "L-Tyrosine",
+      "N-Acetyl-L-Tyrosine",
+      "NALT"
+    ],
+    "category": "food_grade",
+    "bioavailability": 0.9,
+    "tmax_hours": 1.5,
+    "half_life_hours": 2.5,
+    "elimination_type": "first_order",
+    "tolerance_profile": "low",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Jongkees et al. 2015 Neurosci Biobehav Rev",
+      "Deijen et al. 1999 Brain Res Bull",
+      "Banderet & Lieberman 1989 Aviat Space Environ Med",
+      "Glaeser et al. 1979"
+    ],
+    "confidence_tier": 2,
+    "pk_params": {
+      "ka": 0.83,
+      "ke": 0.277,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.83,
+          "ke": 0.277,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Taurine",
+    "names": [
+      "taurine",
+      "2-aminoethanesulfonic acid",
+      "taurine powder",
+      "energy drinks",
+      "Taurine"
+    ],
+    "category": "food_grade",
+    "bioavailability": 1,
+    "tmax_hours": 1.5,
+    "half_life_hours": 1,
+    "elimination_type": "first_order",
+    "tolerance_profile": "none",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Ghandforoush-Sattari et al. 2010 Amino Acids",
+      "Ghandforoush-Sattari et al. 2010 Br J Clin Pharmacol",
+      "Schaffer et al. 2010 Physiol Rev",
+      "Ghandforoush-Sattari et al. 2010"
+    ],
+    "confidence_tier": 1,
+    "pk_params": {
+      "ka": 2.08,
+      "ke": 0.693,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 2.08,
+          "ke": 0.693,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Ginkgo Biloba",
+    "names": [
+      "ginkgo biloba",
+      "ginkgo",
+      "maidenhair tree",
+      "EGb 761",
+      "ginkgolides",
+      "bilobalide",
+      "Ginkgo Biloba",
+      "EGb-761"
+    ],
+    "category": "food_grade",
+    "bioavailability": 0.75,
+    "tmax_hours": 2,
+    "half_life_hours": 4,
+    "elimination_type": "first_order",
+    "tolerance_profile": "none",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Woelkart et al. 2010 Phytomedicine",
+      "Ude et al. 2013 Front Pharmacol",
+      "DeFeudis 2003 CNS Drug Rev",
+      "Moreau et al. 1986",
+      "Ude et al. 2013"
+    ],
+    "confidence_tier": 1,
+    "pk_params": {
+      "ka": 0.52,
+      "ke": 0.173,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.52,
+          "ke": 0.173,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Coenzyme Q10",
+    "names": [
+      "coenzyme q10",
+      "coq10",
+      "ubiquinone",
+      "ubiquinol",
+      "coenzyme Q10",
+      "CoQ10",
+      "Q10",
+      "Coenzyme Q10",
+      "Ubiquinone",
+      "Ubiquinol"
+    ],
+    "category": "food_grade",
+    "bioavailability": 0.06,
+    "tmax_hours": 6,
+    "half_life_hours": 33.5,
+    "elimination_type": "first_order",
+    "tolerance_profile": "none",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Bhagavan & Chopra 2006 Free Radic Res",
+      "Miles 2007 Biofactors",
+      "Bhagavan & Chopra 2006 Nutr Res",
+      "Bhagavan et al. 2006"
+    ],
+    "confidence_tier": 2,
+    "pk_params": {
+      "ka": 0.17,
+      "ke": 0.021,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.17,
+          "ke": 0.021,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "PQQ",
+    "names": [
+      "pqq",
+      "pyrroloquinoline quinone",
+      "PQQ",
+      "methoxatin",
+      "Pyrroloquinoline quinone",
+      "Methoxatin"
+    ],
+    "category": "food_grade",
+    "bioavailability": 0.6,
+    "tmax_hours": 2,
+    "half_life_hours": 4,
+    "elimination_type": "first_order",
+    "tolerance_profile": "none",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Nakano et al. 2015 Funct Foods Health Dis",
+      "Harris et al. 2013 J Nutr Biochem",
+      "Nakano et al. 2012 Food Style 21 (review)",
+      "Smidt et al. 1991"
+    ],
+    "confidence_tier": 1,
+    "pk_params": {
+      "ka": 0.52,
+      "ke": 0.173,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.52,
+          "ke": 0.173,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Ibuprofen",
+    "names": [
+      "ibuprofen",
+      "advil",
+      "motrin",
+      "nurofen",
+      "Advil",
+      "Motrin",
+      "Brufen",
+      "(RS)-2-(4-isobutylphenyl)propionic acid",
+      "Ibuprofen"
+    ],
+    "category": "otc",
+    "bioavailability": 0.85,
+    "tmax_hours": 1.5,
+    "half_life_hours": 2,
+    "elimination_type": "first_order",
+    "tolerance_profile": "none",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Davies 1998 Clin Pharmacokinet",
+      "FDA ibuprofen label",
+      "Rainsford 2009 Inflammopharmacology",
+      "Davies 1998",
+      "FDA label"
+    ],
+    "confidence_tier": 1,
+    "pk_params": {
+      "ka": 1.04,
+      "ke": 0.347,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 1.04,
+          "ke": 0.347,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Acetaminophen",
+    "names": [
+      "acetaminophen",
+      "paracetamol",
+      "tylenol",
+      "apap",
+      "Tylenol",
+      "APAP",
+      "N-acetyl-p-aminophenol",
+      "Acetaminophen",
+      "Paracetamol",
+      "panadol"
+    ],
+    "category": "otc",
+    "bioavailability": 0.87,
+    "tmax_hours": 0.75,
+    "half_life_hours": 2.5,
+    "elimination_type": "first_order",
+    "tolerance_profile": "none",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Forrest et al. 1982 Clin Pharmacokinet",
+      "FDA acetaminophen label",
+      "Rawlins et al. 1977",
+      "FDA label"
+    ],
+    "confidence_tier": 1,
+    "pk_params": {
+      "ka": 1.33,
+      "ke": 0.277,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 1.33,
+          "ke": 0.277,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Diphenhydramine",
+    "names": [
+      "diphenhydramine",
+      "benadryl",
+      "zzzquil",
+      "unisom sleeptabs",
+      "Benadryl",
+      "N,N-dimethyl-2-(diphenylmethoxy)ethanamine",
+      "Diphenhydramine",
+      "DPH",
+      "dph"
+    ],
+    "category": "otc",
+    "bioavailability": 0.6,
+    "tmax_hours": 2,
+    "half_life_hours": 8,
+    "elimination_type": "first_order",
+    "tolerance_profile": "moderate",
+    "withdrawal_profile": "low",
+    "pk_model": "bateman",
+    "citations": [
+      "Blyden et al. 1986 J Clin Pharmacol",
+      "FDA diphenhydramine label",
+      "Simons et al. 1990 J Allergy Clin Immunol",
+      "Blyden et al. 1986"
+    ],
+    "confidence_tier": 1,
+    "pk_params": {
+      "ka": 0.5,
+      "ke": 0.087,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.5,
+          "ke": 0.087,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Dextromethorphan",
+    "names": [
+      "dextromethorphan",
+      "dxm",
+      "robitussin",
+      "delsym",
+      "DXM",
+      "Robitussin DM",
+      "Delsym (polistirex)",
+      "(+)-3-methoxy-17-methylmorphinan",
+      "Dextromethorphan",
+      "Robitussin"
+    ],
+    "category": "otc",
+    "bioavailability": 0.11,
+    "tmax_hours": 2.5,
+    "half_life_hours": 3.5,
+    "elimination_type": "first_order",
+    "tolerance_profile": "moderate",
+    "withdrawal_profile": "moderate",
+    "pk_model": "bateman",
+    "citations": [
+      "Bem & Peck 1992 Drug Safety",
+      "Capon et al. 1996 Clin Pharmacokinet",
+      "FDA dextromethorphan label",
+      "Silvasti et al. 1987"
+    ],
+    "confidence_tier": 2,
+    "pk_params": {
+      "ka": 0.59,
+      "ke": 0.198,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.59,
+          "ke": 0.198,
+          "magnitude": 1
+        }
+      },
+      {
+        "type": "withdrawal",
+        "params": {
+          "peak_day": 2,
+          "resolution_days": 7,
+          "magnitude": 0.3
+        }
+      }
+    ]
+  },
+  {
+    "name": "CBD",
+    "names": [
+      "cbd",
+      "cannabidiol",
+      "hemp extract",
+      "CBD",
+      "Epidiolex",
+      "cannabis extract",
+      "Cannabidiol"
+    ],
+    "category": "food_grade",
+    "bioavailability": 0.1,
+    "tmax_hours": 3,
+    "half_life_hours": 24,
+    "elimination_type": "first_order",
+    "tolerance_profile": "low",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Millar et al. 2018 Front Pharmacol",
+      "Taylor et al. 2018 Epilepsia",
+      "Millar et al. 2018"
+    ],
+    "confidence_tier": 1,
+    "pk_params": {
+      "ka": 0.33,
+      "ke": 0.029,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.33,
+          "ke": 0.029,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Kratom",
+    "names": [
+      "kratom",
+      "mitragyna speciosa",
+      "mitragynine",
+      "Mitragyna speciosa",
+      "7-hydroxymitragynine",
+      "ketum",
+      "Kratom",
+      "Mitragynine"
+    ],
+    "category": "untested",
+    "bioavailability": 0.25,
+    "tmax_hours": 1,
+    "half_life_hours": 23.2,
+    "elimination_type": "first_order",
+    "tolerance_profile": "high",
+    "withdrawal_profile": "moderate",
+    "pk_model": "bateman",
+    "citations": [
+      "Trakulsrichai et al. 2015 J Med Toxicol",
+      "Trakulsrichai et al. 2015 J Ethnopharmacol",
+      "Huestis et al. 2024 Human Mitragynine Pharmacokinetics",
+      "Trakulsrichai et al. 2015"
+    ],
+    "confidence_tier": 2,
+    "pk_params": {
+      "ka": 1,
+      "ke": 0.03,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 1,
+          "ke": 0.03,
+          "magnitude": 1
+        }
+      },
+      {
+        "type": "withdrawal",
+        "params": {
+          "peak_day": 2,
+          "resolution_days": 7,
+          "magnitude": 0.3
+        }
+      }
+    ]
+  },
+  {
+    "name": "Kava",
+    "names": [
+      "kava",
+      "kava kava",
+      "piper methysticum",
+      "Piper methysticum",
+      "kavalactones",
+      "kavain",
+      "yangonin",
+      "Kava",
+      "Kavalactones"
+    ],
+    "category": "food_grade",
+    "bioavailability": null,
+    "tmax_hours": 2,
+    "half_life_hours": 9,
+    "elimination_type": "first_order",
+    "tolerance_profile": "moderate",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Sarris et al. 2011 Phytother Res",
+      "Bilia et al. 2002 J Pharm Biomed Anal",
+      "Teschke & Schulze 2010 J Hepatol",
+      "Bilia et al. 2002"
+    ],
+    "confidence_tier": 1,
+    "pk_params": {
+      "ka": 0.5,
+      "ke": 0.077,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.5,
+          "ke": 0.077,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "5-HTP",
+    "names": [
+      "5-htp",
+      "5-hydroxytryptophan",
+      "oxitriptan",
+      "5-HTP",
+      "Griffonia simplicifolia extract",
+      "5-Hydroxytryptophan",
+      "Oxitriptan"
+    ],
+    "category": "food_grade",
+    "bioavailability": 0.7,
+    "tmax_hours": 1.5,
+    "half_life_hours": 2.3,
+    "elimination_type": "first_order",
+    "tolerance_profile": "low",
+    "withdrawal_profile": "low",
+    "pk_model": "bateman",
+    "citations": [
+      "Birdsall 1998 Altern Med Rev",
+      "van Harten 1992 Eur J Clin Pharmacol",
+      "Westenberg et al. 1982"
+    ],
+    "confidence_tier": 2,
+    "pk_params": {
+      "ka": 0.9,
+      "ke": 0.301,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.9,
+          "ke": 0.301,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Phenibut",
+    "names": [
+      "phenibut",
+      "beta-phenyl-gaba",
+      "fenibut",
+      "pbut",
+      "β-phenyl-γ-aminobutyric acid",
+      "beta-phenyl-GABA",
+      "aminophenylbutyric acid",
+      "noofen",
+      "anvifen",
+      "Phenibut",
+      "Beta-phenyl-GABA",
+      "Noofen",
+      "β-phenyl-gaba",
+      "phenybut"
+    ],
+    "category": "untested",
+    "bioavailability": 0.64,
+    "tmax_hours": 3,
+    "half_life_hours": 5.3,
+    "elimination_type": "first_order",
+    "tolerance_profile": "high",
+    "withdrawal_profile": "high",
+    "pk_model": "bateman",
+    "citations": [
+      "Lapin 2001 CNS Drug Rev",
+      "Phenibut (beta-phenyl-GABA): a tranquilizer and nootropic drug. CNS Drug Reviews (2006)",
+      "Phenibut PK summary sources (healthy volunteer 250 mg data reported in secondary references)",
+      "Lapin 2001"
+    ],
+    "confidence_tier": 2,
+    "pk_params": {
+      "ka": 0.39,
+      "ke": 0.131,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 0.39,
+          "ke": 0.131,
+          "magnitude": 1
+        }
+      },
+      {
+        "type": "withdrawal",
+        "params": {
+          "peak_day": 2,
+          "resolution_days": 7,
+          "magnitude": 0.3
+        }
+      }
+    ]
+  },
+  {
+    "name": "Adrafinil",
+    "names": [
+      "adrafinil",
+      "olmifon",
+      "Olmifon",
+      "CRL-40028",
+      "N-hydroxymodafinil",
+      "Adrafinil"
+    ],
+    "category": "untested",
+    "bioavailability": 0.8,
+    "tmax_hours": 1,
+    "half_life_hours": 1,
+    "elimination_type": "first_order",
+    "tolerance_profile": "low",
+    "withdrawal_profile": "low",
+    "pk_model": "bateman",
+    "citations": [
+      "Milgram et al. 1999 Life Sci",
+      "Adrafinil drug monograph (Olmifon)",
+      "DrugBank: Adrafinil (DB08925)",
+      "Secondary PK summaries of adrafinil and modafinil metabolite",
+      "Moachon et al. 1988"
+    ],
+    "confidence_tier": 2,
+    "pk_params": {
+      "ka": 2.08,
+      "ke": 0.693,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 2.08,
+          "ke": 0.693,
+          "magnitude": 1
+        }
+      }
+    ]
+  },
+  {
+    "name": "Oxiracetam",
+    "names": [
+      "oxiracetam",
+      "4-hydroxy-2-oxo-1-pyrrolidine acetamide",
+      "Oxiracetam",
+      "Neuromet",
+      "4-hydroxy-2-oxo-1-pyrrolidineacetamide"
+    ],
+    "category": "untested",
+    "bioavailability": 0.88,
+    "tmax_hours": 1,
+    "half_life_hours": 8,
+    "elimination_type": "first_order",
+    "tolerance_profile": "low",
+    "withdrawal_profile": "none",
+    "pk_model": "bateman",
+    "citations": [
+      "Nicholson 1990 Psychopharmacology (Berl)",
+      "Drug monographs (EU)",
+      "Perucca et al. 1986"
+    ],
+    "confidence_tier": 2,
+    "pk_params": {
+      "ka": 1,
+      "ke": 0.087,
+      "magnitude": 1
+    },
+    "curves": [
+      {
+        "type": "bateman",
+        "params": {
+          "ka": 1,
+          "ke": 0.087,
+          "magnitude": 1
+        }
+      }
+    ]
+  }
+];

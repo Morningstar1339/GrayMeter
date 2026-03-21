@@ -125,7 +125,7 @@ export default function ActivitiesScreen() {
           default_value: activity.default_value.toString(),
           unit: activity.unit,
           icon_id: activity.icon_id || 'fitness',
-          color: activity.color || '#007AFF',
+          color: activity.color || '#00D4FF',
         },
       });
     },
@@ -149,7 +149,7 @@ export default function ActivitiesScreen() {
           default_value: activity.default_value.toString(),
           unit: activity.unit,
           icon_id: activity.icon_id || 'fitness',
-          color: activity.color || '#007AFF',
+          color: activity.color || '#00D4FF',
         },
       });
     },
@@ -162,13 +162,16 @@ export default function ActivitiesScreen() {
 
   const renderActivity = useCallback(
     ({ item: activity }: { item: Activity }) => {
-      const itemBackgroundColor = activity.color || '#007AFF';
+      const itemBackgroundColor = activity.color || '#00D4FF';
       const textColor = getContrastingTextColor(itemBackgroundColor);
 
       return (
         <TouchableOpacity
           style={[styles.activityButton, { backgroundColor: itemBackgroundColor }]}
           onPress={() => handleActivityPress(activity)}
+          accessibilityRole="button"
+          accessibilityLabel={`Log ${activity.name}`}
+          testID={`btn-activity-${activity.id}`}
         >
           <View style={styles.activityContent}>
             <View style={styles.leftSection}>
@@ -198,6 +201,9 @@ export default function ActivitiesScreen() {
                 style={styles.editButton}
                 onPress={(event) => handleEditActivity(activity, event)}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+                accessibilityRole="button"
+                accessibilityLabel={`Edit ${activity.name}`}
+                testID={`btn-edit-activity-${activity.id}`}
               >
                 <Ionicons name="pencil-outline" size={16} color={textColor} />
               </TouchableOpacity>
@@ -211,7 +217,7 @@ export default function ActivitiesScreen() {
 
   const renderAddButton = useCallback(
     () => (
-      <TouchableOpacity style={styles.addButton} onPress={handleAddActivity}>
+      <TouchableOpacity style={styles.addButton} onPress={handleAddActivity} accessibilityRole="button" accessibilityLabel="Add activity" testID="btn-add-activity">
         <Ionicons name="add" size={32} color={tintColor} />
         <ThemedText style={[styles.addButtonText, { color: tintColor }]}>Add Activity</ThemedText>
       </TouchableOpacity>
@@ -228,6 +234,9 @@ export default function ActivitiesScreen() {
       <TouchableOpacity
         style={styles.deleteAction}
         onPress={() => handleDeleteLog(item.id)}
+        accessibilityRole="button"
+        accessibilityLabel="Delete log entry"
+        testID={`btn-delete-activity-log-${item.id}`}
       >
         <Ionicons name="trash-outline" size={24} color="white" />
       </TouchableOpacity>
@@ -236,7 +245,7 @@ export default function ActivitiesScreen() {
     return (
       <Swipeable renderRightActions={renderRightActions}>
         <View style={styles.historyItem}>
-          <View style={[styles.historyIconContainer, { backgroundColor: item.color || '#007AFF' }]}>
+          <View style={[styles.historyIconContainer, { backgroundColor: item.color || '#00D4FF' }]}>
             <Ionicons name={(item.icon_id || 'fitness') as any} size={20} color="white" />
           </View>
           <View style={styles.historyTextContainer}>
@@ -279,6 +288,9 @@ export default function ActivitiesScreen() {
             style={styles.backButton}
             onPress={() => router.back()}
             hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+            accessibilityRole="button"
+            accessibilityLabel="Go back"
+            testID="btn-activities-back"
           >
             <Ionicons name="chevron-back" size={28} color={tintColor} />
           </TouchableOpacity>
@@ -292,6 +304,9 @@ export default function ActivitiesScreen() {
           <TouchableOpacity
             style={[styles.toggleButton, viewMode === 'log' && { backgroundColor: tintColor }]}
             onPress={() => handleViewModeChange('log')}
+            accessibilityRole="button"
+            accessibilityLabel="Show log view"
+            testID="btn-activities-log-tab"
           >
             <ThemedText style={[styles.toggleText, viewMode === 'log' && styles.toggleTextActive]}>
               Log
@@ -300,6 +315,9 @@ export default function ActivitiesScreen() {
           <TouchableOpacity
             style={[styles.toggleButton, viewMode === 'history' && { backgroundColor: tintColor }]}
             onPress={() => handleViewModeChange('history')}
+            accessibilityRole="button"
+            accessibilityLabel="Show history view"
+            testID="btn-activities-history-tab"
           >
             <ThemedText style={[styles.toggleText, viewMode === 'history' && styles.toggleTextActive]}>
               History

@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { StyleSheet, TouchableOpacity, View, Dimensions, Alert, ScrollView } from 'react-native';
+import { StyleSheet, TouchableOpacity, View, Dimensions, Alert, ScrollView, Animated } from 'react-native';
+import * as Haptics from 'expo-haptics';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
 import { ThemedText } from '@/components/themed-text';
@@ -40,6 +41,17 @@ export default function ReflexesTestScreen() {
   const [scheduledTest, setScheduledTest] = useState<any>(null);
   const [studyContext, setStudyContext] = useState<any>(null);
   const [activeTestSession, setActiveTestSession] = useState<any>(null);
+  const [combo, setCombo] = useState(0);
+  const [maxCombo, setMaxCombo] = useState(0);
+  const [showHitEffect, setShowHitEffect] = useState(false);
+  const [hitEffectPosition, setHitEffectPosition] = useState<BubblePosition>({ x: 0, y: 0 });
+  
+  // Animation values
+  const bubbleScale = useRef(new Animated.Value(1)).current;
+  const scoreScale = useRef(new Animated.Value(1)).current;
+  const comboScale = useRef(new Animated.Value(1)).current;
+  const hitEffectOpacity = useRef(new Animated.Value(0)).current;
+  const hitEffectScale = useRef(new Animated.Value(0.5)).current;
   
   const gameTimer = useRef<number | null>(null);
   const countdownTimer = useRef<number | null>(null);
@@ -123,9 +135,19 @@ const generateRandomPosition = (): BubblePosition => {
     setScore(0);
     setHits(0);
     setMisses(0);
+    setCombo(0);
+    setMaxCombo(0);
     setTimeLeft(TEST_DURATION / 1000);
     setGameState('playing');
     setBubblePosition(generateRandomPosition());
+    
+    // Reset animation values
+    bubbleScale.setValue(1);
+    scoreScale.setValue(1);
+    comboScale.setValue(1);
+    hitEffectOpacity.setValue(0);
+    setShowHitEffect(false);
+    setHitEffectPosition({ x: 0, y: 0 });
     
     // Start countdown timer
     countdownTimer.current = setInterval(() => {
@@ -216,9 +238,33 @@ const generateRandomPosition = (): BubblePosition => {
     if (gameState === 'playing') {
       justTappedBubble.current = true;
       setTimeout(() => { justTappedBubble.current = false; }, 50);
+      
+      // Capture tap coordinates for hit effect
+      const tapX = e.nativeEvent.locationX + bubblePosition.x - BUBBLE_SIZE / 2;
+      const tapY = e.nativeEvent.locationY + bubblePosition.y - BUBBLE_SIZE / 2;
+      setHitEffectPosition({ x: tapX, y: tapY });
+      
+      // Update counts
       hitsRef.current += 1;
       setHits(hitsRef.current);
       setScore(hitsRef.current - missesRef.current);
+      
+      // Update combo
+      const newCombo = combo + 1;
+      setCombo(newCombo);
+      if (newCombo > maxCombo) {
+        setMaxCombo(newCombo);
+      }
+      
+      // Haptic feedback
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      
+      // Visual feedback animations
+      playBubbleHitAnimation();
+      playScoreAnimation();
+      playComboAnimation(newCombo);
+      playHitEffect();
+      
       setBubblePosition(generateRandomPosition());
     }
   };
@@ -228,7 +274,79 @@ const generateRandomPosition = (): BubblePosition => {
       missesRef.current += 1;
       setMisses(missesRef.current);
       setScore(hitsRef.current - missesRef.current);
+      
+      // Reset combo on miss
+      setCombo(0);
+      
+      // Haptic feedback for miss
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+      
+      // Visual feedback for miss
+      playMissAnimation();
     }
+  };
+
+  // Animation functions
+  const playBubbleHitAnimation = () => {
+    bubbleScale.setValue(1.2);
+    Animated.spring(bubbleScale, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 300,
+      friction: 6
+    }).start();
+  };
+
+  const playScoreAnimation = () => {
+    scoreScale.setValue(1.2);
+    Animated.spring(scoreScale, {
+      toValue: 1,
+      useNativeDriver: true,
+      tension: 200,
+      friction: 5
+    }).start();
+  };
+
+  const playComboAnimation = (comboCount: number) => {
+    if (comboCount >= 3) {
+      comboScale.setValue(1.4);
+      Animated.spring(comboScale, {
+        toValue: 1,
+        useNativeDriver: true,
+        tension: 150,
+        friction: 4
+      }).start();
+    }
+  };
+
+  const playHitEffect = () => {
+    setShowHitEffect(true);
+    hitEffectOpacity.setValue(0.8);
+    hitEffectScale.setValue(0.5);
+    
+    Animated.parallel([
+      Animated.timing(hitEffectOpacity, {
+        toValue: 0,
+        duration: 500,
+        useNativeDriver: true,
+      }),
+      Animated.timing(hitEffectScale, {
+        toValue: 2,
+        duration: 500,
+        useNativeDriver: true,
+      })
+    ]).start(() => {
+      setShowHitEffect(false);
+    });
+  };
+
+  const playMissAnimation = () => {
+    // Subtle shake effect for the screen
+    Animated.sequence([
+      Animated.timing(scoreScale, { toValue: 0.95, duration: 100, useNativeDriver: true }),
+      Animated.timing(scoreScale, { toValue: 1.05, duration: 100, useNativeDriver: true }),
+      Animated.timing(scoreScale, { toValue: 1, duration: 100, useNativeDriver: true }),
+    ]).start();
   };
 
   const handleBackToMenu = () => {
@@ -332,8 +450,18 @@ const generateRandomPosition = (): BubblePosition => {
       setHits(0);
       setMisses(0);
       setScore(0);
+      setCombo(0);
+      setMaxCombo(0);
       setGameState('ready');
       setTimeLeft(TEST_DURATION / 1000);
+      
+      // Reset animations
+      bubbleScale.setValue(1);
+      scoreScale.setValue(1);
+      comboScale.setValue(1);
+      hitEffectOpacity.setValue(0);
+      setShowHitEffect(false);
+      setHitEffectPosition({ x: 0, y: 0 });
       
       return () => {
         console.log('📱 NAVIGATING AWAY FROM: Reflexes Test');
@@ -379,13 +507,16 @@ const generateRandomPosition = (): BubblePosition => {
           <ThemedText style={styles.instructions}>
             Tap the dots as quickly as possible for 10 seconds!
           </ThemedText>
-          <TouchableOpacity 
-            style={[styles.startButton, { backgroundColor: tintColor }]} 
+          <TouchableOpacity
+            style={[styles.startButton, { backgroundColor: tintColor }]}
             onPress={startGame}
+            accessibilityRole="button"
+            accessibilityLabel="Start reflexes test"
+            testID="btn-reflexes-start"
           >
             <ThemedText style={styles.startButtonText}>Start Test</ThemedText>
           </TouchableOpacity>
-          <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+          <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Back to menu" testID="btn-reflexes-back">
             <ThemedText style={styles.backButtonText}>Back to Menu</ThemedText>
           </TouchableOpacity>
         </ThemedView>
@@ -399,12 +530,24 @@ const generateRandomPosition = (): BubblePosition => {
       <ThemedView style={styles.container} safeArea>
         <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <ThemedView style={styles.resultsContainer}>
-          <ThemedText type="title" style={styles.title}>Test Complete!</ThemedText>
-          <ThemedText style={styles.finalScore}>Final Score: {score}</ThemedText>
-          <ThemedText style={styles.metricText}>Accuracy: {(hits + misses) > 0 ? ((hits / (hits + misses)) * 100).toFixed(1) : '100'}%</ThemedText>
-          <ThemedText style={styles.metricText}>Bubbles Hit: {hits}</ThemedText>
-          <ThemedText style={styles.metricText}>Misses: {misses}</ThemedText>
-          <ThemedText style={styles.metricText}>Test Duration: {TEST_DURATION / 1000}s</ThemedText>
+          <ThemedText type="title" style={styles.title}>
+            {score >= 80 ? '🎯 Excellent!' : score >= 50 ? '✅ Well Done!' : score >= 25 ? '👍 Good Try!' : '💪 Keep Going!'}
+          </ThemedText>
+          <ThemedText style={styles.finalScore}>Score: {score}</ThemedText>
+          <View style={styles.metricsGrid}>
+            <View style={styles.metricCard}>
+              <ThemedText style={styles.metricNumber}>{((hits + misses) > 0 ? ((hits / (hits + misses)) * 100) : 100).toFixed(0)}%</ThemedText>
+              <ThemedText style={styles.metricLabel}>Accuracy</ThemedText>
+            </View>
+            <View style={styles.metricCard}>
+              <ThemedText style={styles.metricNumber}>{hits}</ThemedText>
+              <ThemedText style={styles.metricLabel}>Hits</ThemedText>
+            </View>
+            <View style={styles.metricCard}>
+              <ThemedText style={styles.metricNumber}>{maxCombo}</ThemedText>
+              <ThemedText style={styles.metricLabel}>Best Combo</ThemedText>
+            </View>
+          </View>
           <ThemedText style={styles.resultMessage}>
             {score >= 80 ? 'Excellent reflexes!' : 
              score >= 50 ? 'Good performance!' : 
@@ -412,27 +555,33 @@ const generateRandomPosition = (): BubblePosition => {
           </ThemedText>
           {params.sequence === 'all-nine' ? (
             <>
-              <TouchableOpacity 
-                style={[styles.startButton, { backgroundColor: tintColor }, inputsDisabled && { opacity: 0.5 }]} 
+              <TouchableOpacity
+                style={[styles.startButton, { backgroundColor: tintColor }, inputsDisabled && { opacity: 0.5 }]}
                 onPress={handleNextTestOrFinish}
                 disabled={inputsDisabled}
+                accessibilityRole="button"
+                accessibilityLabel="Next test"
+                testID="btn-reflexes-next"
               >
                 <ThemedText style={styles.startButtonText}>Next Test</ThemedText>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.backButton, inputsDisabled && { opacity: 0.5 }]} onPress={handleExitTest} disabled={inputsDisabled}>
+              <TouchableOpacity style={[styles.backButton, inputsDisabled && { opacity: 0.5 }]} onPress={handleExitTest} disabled={inputsDisabled} accessibilityRole="button" accessibilityLabel="Exit test battery" testID="btn-reflexes-exit-battery">
                 <ThemedText style={styles.backButtonText}>Exit Test Battery</ThemedText>
               </TouchableOpacity>
             </>
           ) : (
             <>
-              <TouchableOpacity 
-                style={[styles.startButton, { backgroundColor: tintColor }, inputsDisabled && { opacity: 0.5 }]} 
+              <TouchableOpacity
+                style={[styles.startButton, { backgroundColor: tintColor }, inputsDisabled && { opacity: 0.5 }]}
                 onPress={handlePlayAgain}
                 disabled={inputsDisabled}
+                accessibilityRole="button"
+                accessibilityLabel="Play again"
+                testID="btn-reflexes-play-again"
               >
                 <ThemedText style={styles.startButtonText}>Play Again</ThemedText>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.backButton, inputsDisabled && { opacity: 0.5 }]} onPress={handleBackToMenu} disabled={inputsDisabled}>
+              <TouchableOpacity style={[styles.backButton, inputsDisabled && { opacity: 0.5 }]} onPress={handleBackToMenu} disabled={inputsDisabled} accessibilityRole="button" accessibilityLabel="Back to menu" testID="btn-reflexes-back-menu">
                 <ThemedText style={styles.backButtonText}>Back to Menu</ThemedText>
               </TouchableOpacity>
             </>
@@ -444,22 +593,37 @@ const generateRandomPosition = (): BubblePosition => {
   }
 
   return (
-    <TouchableOpacity 
-      style={[styles.gameContainer, { paddingTop: insets.top + 10 }]} 
+    <TouchableOpacity
+      style={[styles.gameContainer, { paddingTop: insets.top + 10 }]}
       onPress={handleScreenTap}
       activeOpacity={1}
+      accessibilityRole="button"
+      accessibilityLabel="Game area, tap to play"
+      testID="btn-reflexes-game-area"
     >
       <ThemedView style={[styles.infoBanner, { borderColor: tintColor }]}>
         <TouchableOpacity
           style={styles.bannerBackButton}
           onPress={handleExitTest}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Exit test"
+          testID="btn-reflexes-exit-playing"
         >
           <Ionicons name="arrow-back" size={20} color={tintColor} />
         </TouchableOpacity>
         <View style={styles.bannerStats}>
           <ThemedText style={styles.bannerStatText}>Time: {timeLeft}s</ThemedText>
-          <ThemedText style={styles.bannerStatText}>Score: {score}</ThemedText>
+          <Animated.View style={{ transform: [{ scale: scoreScale }] }}>
+            <ThemedText style={[styles.bannerStatText, { color: tintColor }]}>Score: {score}</ThemedText>
+          </Animated.View>
+          {combo >= 3 && (
+            <Animated.View style={{ transform: [{ scale: comboScale }] }}>
+              <ThemedText style={[styles.comboText, { color: '#FF6B35' }]}>
+                {combo}x
+              </ThemedText>
+            </Animated.View>
+          )}
         </View>
       </ThemedView>
       
@@ -471,17 +635,41 @@ const generateRandomPosition = (): BubblePosition => {
   }}
 >
 
-        <TouchableOpacity
+        <Animated.View
           style={[
             styles.bubble,
             {
               backgroundColor: tintColor,
               left: bubblePosition.x - BUBBLE_SIZE / 2,
               top: bubblePosition.y - BUBBLE_SIZE / 2,
+              transform: [{ scale: bubbleScale }],
             }
           ]}
-          onPress={handleBubbleTap}
-        />
+        >
+          <TouchableOpacity
+            style={styles.bubbleTouchArea}
+            onPress={handleBubbleTap}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="Tap the bubble"
+            testID="btn-reflexes-bubble"
+          />
+        </Animated.View>
+
+        {/* Hit Effect */}
+        {showHitEffect && (
+          <Animated.View
+            style={[
+              styles.hitEffect,
+              {
+                left: hitEffectPosition.x - 30,
+                top: hitEffectPosition.y - 30,
+                opacity: hitEffectOpacity,
+                transform: [{ scale: hitEffectScale }],
+              }
+            ]}
+          />
+        )}
       </View>
     </TouchableOpacity>
   );
@@ -572,6 +760,13 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  comboText: {
+    fontSize: 16,
+    fontWeight: '700',
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 1, height: 1 },
+    textShadowRadius: 2,
+  },
   timer: {
     fontSize: 18,
     fontWeight: '600',
@@ -598,6 +793,20 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
   },
+  bubbleTouchArea: {
+    width: '100%',
+    height: '100%',
+    borderRadius: BUBBLE_SIZE / 2,
+  },
+  hitEffect: {
+    position: 'absolute',
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    borderWidth: 3,
+    borderColor: '#22C55E',
+    backgroundColor: 'transparent',
+  },
   finalScore: {
     fontSize: 26,
     fontWeight: 'bold',
@@ -620,6 +829,29 @@ const styles = StyleSheet.create({
     opacity: 0.8,
     paddingHorizontal: 20,
     lineHeight: 24,
+  },
+  metricsGrid: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    width: '100%',
+    marginBottom: 30,
+    marginTop: 20,
+  },
+  metricCard: {
+    alignItems: 'center',
+    flex: 1,
+  },
+  metricNumber: {
+    fontSize: 24,
+    fontWeight: '700',
+    lineHeight: 28,
+  },
+  metricLabel: {
+    fontSize: 12,
+    fontWeight: '500',
+    marginTop: 4,
+    opacity: 0.7,
+    textTransform: 'uppercase',
   },
   progressBanner: {
     paddingHorizontal: 16,

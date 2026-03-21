@@ -265,7 +265,7 @@ export default function TilePuzzleTestScreen() {
                 </ThemedText>
               </ThemedView>
             )}
-            <ThemedText type="title" style={styles.title}>8-Tile Puzzle</ThemedText>
+            <ThemedText type="title" style={styles.title}>Planning</ThemedText>
             {scheduledTest && studyContext?.supplement_name && (
               <ThemedView style={[styles.studyBanner, { backgroundColor: tintColor + '20', borderColor: tintColor }]}>
                 <ThemedText style={[styles.studyText, { color: tintColor }]}>
@@ -287,13 +287,16 @@ export default function TilePuzzleTestScreen() {
               • Empty space should be bottom-right{'\n'}
               • Try to solve in as few moves as possible
             </ThemedText>
-            <TouchableOpacity 
-              style={[styles.startButton, { backgroundColor: tintColor }]} 
+            <TouchableOpacity
+              style={[styles.startButton, { backgroundColor: tintColor }]}
               onPress={startGame}
+              accessibilityRole="button"
+              accessibilityLabel="Start tile puzzle test"
+              testID="btn-tile-start"
             >
               <ThemedText style={styles.startButtonText}>Start Test</ThemedText>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+            <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Back to menu" testID="btn-tile-back">
               <ThemedText style={styles.backButtonText}>Back to Menu</ThemedText>
             </TouchableOpacity>
           </ThemedView>
@@ -321,25 +324,31 @@ export default function TilePuzzleTestScreen() {
             </ThemedText>
             {params.sequence === 'all-nine' ? (
               <>
-                <TouchableOpacity 
-                  style={[styles.startButton, { backgroundColor: tintColor }]} 
+                <TouchableOpacity
+                  style={[styles.startButton, { backgroundColor: tintColor }]}
                   onPress={handleNextTestOrFinish}
+                  accessibilityRole="button"
+                  accessibilityLabel="Next test"
+                  testID="btn-tile-next"
                 >
                   <ThemedText style={styles.startButtonText}>Next Test</ThemedText>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+                <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Exit test battery" testID="btn-tile-exit-battery">
                   <ThemedText style={styles.backButtonText}>Exit Test Battery</ThemedText>
                 </TouchableOpacity>
               </>
             ) : (
               <>
-                <TouchableOpacity 
-                  style={[styles.startButton, { backgroundColor: tintColor }]} 
+                <TouchableOpacity
+                  style={[styles.startButton, { backgroundColor: tintColor }]}
                   onPress={handlePlayAgain}
+                  accessibilityRole="button"
+                  accessibilityLabel="Play again"
+                  testID="btn-tile-play-again"
                 >
                   <ThemedText style={styles.startButtonText}>Play Again</ThemedText>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+                <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Back to menu" testID="btn-tile-back-menu">
                   <ThemedText style={styles.backButtonText}>Back to Menu</ThemedText>
                 </TouchableOpacity>
               </>
@@ -357,6 +366,9 @@ export default function TilePuzzleTestScreen() {
           style={styles.bannerBackButton}
           onPress={handleBackToMenu}
           hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+          accessibilityRole="button"
+          accessibilityLabel="Back to menu"
+          testID="btn-tile-back-playing"
         >
           <Ionicons name="arrow-back" size={20} color={tintColor} />
         </TouchableOpacity>
@@ -379,6 +391,9 @@ export default function TilePuzzleTestScreen() {
               ]}
               onPress={() => moveTile(rowIndex, colIndex)}
               disabled={!canMoveTile(rowIndex, colIndex, puzzle)}
+              accessibilityRole="button"
+              accessibilityLabel={tile !== null ? `Tile ${tile}` : 'Empty space'}
+              testID={`btn-tile-cell-${rowIndex}-${colIndex}`}
             >
               {tile !== null && (
                 <ThemedText style={styles.tileText}>{tile}</ThemedText>
@@ -407,14 +422,17 @@ export default function TilePuzzleTestScreen() {
         </View>
       </ThemedView>
 
-      <TouchableOpacity 
-        style={[styles.giveUpButton, { borderColor: '#FF3B30' }]} 
+      <TouchableOpacity
+        style={[styles.giveUpButton, { borderColor: '#FF3B30' }]}
         onPress={handleGiveUp}
+        accessibilityRole="button"
+        accessibilityLabel="Give up"
+        testID="btn-tile-give-up"
       >
         <ThemedText style={[styles.giveUpButtonText, { color: '#FF3B30' }]}>Give Up</ThemedText>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu}>
+      <TouchableOpacity style={styles.backButton} onPress={handleBackToMenu} accessibilityRole="button" accessibilityLabel="Back to menu" testID="btn-tile-back-playing-bottom">
         <ThemedText style={styles.backButtonText}>Back to Menu</ThemedText>
       </TouchableOpacity>
     </ThemedView>

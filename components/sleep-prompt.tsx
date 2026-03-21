@@ -51,15 +51,25 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
   }, [visible, isOverdueReminder]);
 
   const handleSkip = async () => {
-    await markSleepPromptShown();
-    await rescheduleSleepReminder();
-    onClose();
+    try {
+      await markSleepPromptShown();
+      await rescheduleSleepReminder();
+    } catch (error) {
+      console.error('Failed to mark sleep prompt shown:', error);
+    } finally {
+      onClose();
+    }
   };
 
   const handleDontWantToLog = async () => {
-    await markSleepPromptShown();
-    await rescheduleSleepReminder();
-    onClose();
+    try {
+      await markSleepPromptShown();
+      await rescheduleSleepReminder();
+    } catch (error) {
+      console.error('Failed to mark sleep prompt shown:', error);
+    } finally {
+      onClose();
+    }
   };
 
   const handleDidntSleep = async () => {
@@ -192,6 +202,9 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
       <TouchableOpacity
         style={[styles.primaryButton, { backgroundColor: tintColor }]}
         onPress={handleLogSleep}
+        accessibilityRole="button"
+        accessibilityLabel="Log sleep now"
+        testID="btn-log-sleep-now"
       >
         <Ionicons name="bed-outline" size={20} color="white" style={styles.buttonIcon} />
         <ThemedText style={styles.primaryButtonText}>Log Sleep Now</ThemedText>
@@ -200,6 +213,9 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
       <TouchableOpacity
         style={styles.secondaryButton}
         onPress={handleDontWantToLog}
+        accessibilityRole="button"
+        accessibilityLabel="Skip sleep logging"
+        testID="btn-skip-sleep"
       >
         <ThemedText style={[styles.secondaryButtonText, { color: tintColor }]}>
           {isOverdueReminder ? "I don't want to log" : 'Skip for now'}
@@ -210,6 +226,9 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
         <TouchableOpacity
           style={styles.tertiaryButton}
           onPress={handleDidntSleep}
+          accessibilityRole="button"
+          accessibilityLabel="I didn't sleep"
+          testID="btn-didnt-sleep"
         >
           <ThemedText style={styles.tertiaryButtonText}>
             I didn't sleep in this time
@@ -221,6 +240,9 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
         <TouchableOpacity
           style={styles.tertiaryButton}
           onPress={handleSkip}
+          accessibilityRole="button"
+          accessibilityLabel="Don't ask again today"
+          testID="btn-dont-ask-today"
         >
           <ThemedText style={styles.tertiaryButtonText}>
             Don't ask again today
@@ -238,6 +260,9 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
       <TouchableOpacity
         style={[styles.timeButton, { borderColor: tintColor }]}
         onPress={() => openPicker('sleep')}
+        accessibilityRole="button"
+        accessibilityLabel="Set sleep time"
+        testID="btn-sleep-time-picker"
       >
         <View>
           <ThemedText style={styles.timeLabel}>Sleep Time</ThemedText>
@@ -252,11 +277,14 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
       <TouchableOpacity
         style={[styles.primaryButton, { backgroundColor: tintColor }]}
         onPress={handleSleepTimeSet}
+        accessibilityRole="button"
+        accessibilityLabel="Continue"
+        testID="btn-sleep-time-continue"
       >
         <ThemedText style={styles.primaryButtonText}>Continue</ThemedText>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.backButton} onPress={isOverdueReminder ? () => setStep('options') : onClose}>
+      <TouchableOpacity style={styles.backButton} onPress={isOverdueReminder ? () => setStep('options') : onClose} accessibilityRole="button" accessibilityLabel="Go back" testID="btn-sleep-time-back">
         <ThemedText style={styles.backButtonText}>{isOverdueReminder ? 'Back' : 'Cancel'}</ThemedText>
       </TouchableOpacity>
     </View>
@@ -270,6 +298,9 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
       <TouchableOpacity
         style={[styles.timeButton, { borderColor: tintColor }]}
         onPress={() => openPicker('wake')}
+        accessibilityRole="button"
+        accessibilityLabel="Set wake time"
+        testID="btn-wake-time-picker"
       >
         <View>
           <ThemedText style={styles.timeLabel}>Wake Time</ThemedText>
@@ -284,11 +315,14 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
       <TouchableOpacity
         style={[styles.primaryButton, { backgroundColor: tintColor }]}
         onPress={handleWakeTimeSet}
+        accessibilityRole="button"
+        accessibilityLabel="Continue"
+        testID="btn-wake-time-continue"
       >
         <ThemedText style={styles.primaryButtonText}>Continue</ThemedText>
       </TouchableOpacity>
 
-      <TouchableOpacity style={styles.backButton} onPress={() => setStep('sleep-time')}>
+      <TouchableOpacity style={styles.backButton} onPress={() => setStep('sleep-time')} accessibilityRole="button" accessibilityLabel="Go back" testID="btn-wake-time-back">
         <ThemedText style={styles.backButtonText}>Back</ThemedText>
       </TouchableOpacity>
     </View>
@@ -335,19 +369,22 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
 
         <TouchableOpacity
           style={[
-            styles.primaryButton, 
+            styles.primaryButton,
             { backgroundColor: tintColor },
             (!isValidDuration || isLogging) && styles.disabledButton
           ]}
           onPress={handleConfirmSleep}
           disabled={!isValidDuration || isLogging}
+          accessibilityRole="button"
+          accessibilityLabel="Save sleep log"
+          testID="btn-confirm-sleep"
         >
           <ThemedText style={styles.primaryButtonText}>
             {isLogging ? 'Saving...' : 'Save Sleep Log'}
           </ThemedText>
         </TouchableOpacity>
 
-        <TouchableOpacity style={styles.backButton} onPress={() => setStep('wake-time')}>
+        <TouchableOpacity style={styles.backButton} onPress={() => setStep('wake-time')} accessibilityRole="button" accessibilityLabel="Go back" testID="btn-confirm-back">
           <ThemedText style={styles.backButtonText}>Back</ThemedText>
         </TouchableOpacity>
       </View>
@@ -367,6 +404,9 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
       <TouchableOpacity
         style={[styles.primaryButton, { backgroundColor: tintColor }]}
         onPress={handleSuccessDone}
+        accessibilityRole="button"
+        accessibilityLabel="Done"
+        testID="btn-sleep-done"
       >
         <ThemedText style={styles.primaryButtonText}>Done</ThemedText>
       </TouchableOpacity>
@@ -377,11 +417,14 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
     <Modal
       visible={visible}
       transparent
-      animationType="fade"
+      animationType={Platform.OS === 'web' ? 'none' : 'fade'}
       onRequestClose={handleSkip}
     >
       <View style={styles.overlay}>
-        <View style={[styles.modal, { backgroundColor }]}>
+        <View style={styles.modal}>
+          <TouchableOpacity style={styles.closeButton} onPress={handleSkip} testID="modal-dismiss-btn" accessibilityLabel="Dismiss" accessibilityRole="button">
+            <Ionicons name="close" size={22} color="#8B939A" />
+          </TouchableOpacity>
           {step === 'options' && renderOptionsStep()}
           {step === 'sleep-time' && renderSleepTimeStep()}
           {step === 'wake-time' && renderWakeTimeStep()}
@@ -406,13 +449,13 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
           <View style={styles.iosPickerOverlay}>
             <View style={[styles.iosPickerContainer, { backgroundColor }]}>
               <View style={styles.iosPickerHeader}>
-                <TouchableOpacity onPress={() => setShowPicker(false)}>
+                <TouchableOpacity onPress={() => setShowPicker(false)} accessibilityRole="button" accessibilityLabel="Cancel time picker" testID="btn-picker-cancel">
                   <ThemedText style={styles.iosPickerCancel}>Cancel</ThemedText>
                 </TouchableOpacity>
                 <ThemedText style={styles.iosPickerTitle}>
                   {currentPicker === 'sleep' ? 'Sleep Time' : 'Wake Time'}
                 </ThemedText>
-                <TouchableOpacity onPress={handleIOSPickerDone}>
+                <TouchableOpacity onPress={handleIOSPickerDone} accessibilityRole="button" accessibilityLabel="Confirm time selection" testID="btn-picker-done">
                   <ThemedText style={[styles.iosPickerDone, { color: tintColor }]}>Done</ThemedText>
                 </TouchableOpacity>
               </View>
@@ -443,13 +486,24 @@ const styles = StyleSheet.create({
   modal: {
     width: '100%',
     maxWidth: 400,
-    borderRadius: 20,
+    borderRadius: 8,
     padding: 24,
+    paddingTop: 40,
+    backgroundColor: '#0D1B2E',
+    borderWidth: 1,
+    borderColor: '#1a2a4a',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
+    shadowOpacity: 0.5,
     shadowRadius: 8,
     elevation: 10,
+  },
+  closeButton: {
+    position: 'absolute',
+    top: 12,
+    right: 12,
+    padding: 4,
+    zIndex: 10,
   },
   content: {
     alignItems: 'center',
@@ -600,8 +654,11 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.4)',
   },
   iosPickerContainer: {
-    borderTopLeftRadius: 16,
-    borderTopRightRadius: 16,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
+    backgroundColor: '#0D1B2E',
+    borderTopWidth: 1,
+    borderColor: '#1a2a4a',
   },
   iosPickerHeader: {
     flexDirection: 'row',
