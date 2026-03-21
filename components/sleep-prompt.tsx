@@ -188,7 +188,7 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
   };
 
   const renderOptionsStep = () => (
-    <View style={styles.content}>
+    <View style={styles.content} pointerEvents="box-none">
       <Ionicons name="moon-outline" size={60} color={tintColor} style={styles.icon} />
       <ThemedText type="title" style={styles.title}>
         {isOverdueReminder ? 'Sleep Reminder' : 'Log Your Sleep'}
@@ -253,7 +253,7 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
   );
 
   const renderSleepTimeStep = () => (
-    <View style={styles.content}>
+    <View style={styles.content} pointerEvents="box-none">
       <Ionicons name="moon-outline" size={50} color={tintColor} style={styles.icon} />
       <ThemedText type="title" style={styles.title}>When did you go to sleep?</ThemedText>
 
@@ -291,7 +291,7 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
   );
 
   const renderWakeTimeStep = () => (
-    <View style={styles.content}>
+    <View style={styles.content} pointerEvents="box-none">
       <Ionicons name="sunny-outline" size={50} color={tintColor} style={styles.icon} />
       <ThemedText type="title" style={styles.title}>When did you wake up?</ThemedText>
 
@@ -333,26 +333,26 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
     const isValidDuration = duration > 0 && duration < 24 * 60 * 60;
 
     return (
-      <View style={styles.content}>
+      <View style={styles.content} pointerEvents="box-none">
         <Ionicons name="checkmark-circle-outline" size={50} color={tintColor} style={styles.icon} />
         <ThemedText type="title" style={styles.title}>Confirm Sleep Log</ThemedText>
 
-        <View style={styles.summaryContainer}>
-          <View style={styles.summaryRow}>
+        <View style={styles.summaryContainer} pointerEvents="box-none">
+          <View style={styles.summaryRow} pointerEvents="box-none">
             <Ionicons name="moon-outline" size={20} color={tintColor} />
             <ThemedText style={styles.summaryLabel}>Went to sleep:</ThemedText>
             <ThemedText style={styles.summaryValue}>
               {formatTime(sleepTime)} ({formatDate(sleepTime)})
             </ThemedText>
           </View>
-          <View style={styles.summaryRow}>
+          <View style={styles.summaryRow} pointerEvents="box-none">
             <Ionicons name="sunny-outline" size={20} color={tintColor} />
             <ThemedText style={styles.summaryLabel}>Woke up:</ThemedText>
             <ThemedText style={styles.summaryValue}>
               {formatTime(wakeTime)} ({formatDate(wakeTime)})
             </ThemedText>
           </View>
-          <View style={[styles.summaryRow, styles.durationRow]}>
+          <View style={[styles.summaryRow, styles.durationRow]} pointerEvents="box-none">
             <Ionicons name="time-outline" size={20} color={tintColor} />
             <ThemedText style={styles.summaryLabel}>Duration:</ThemedText>
             <ThemedText style={[styles.summaryValue, styles.durationValue, { color: tintColor }]}>
@@ -392,7 +392,7 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
   };
 
   const renderSuccessStep = () => (
-    <View style={styles.content}>
+    <View style={styles.content} pointerEvents="box-none">
       <View style={styles.successIconContainer}>
         <Ionicons name="checkmark-circle" size={70} color="#34C759" />
       </View>
@@ -420,7 +420,7 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
       animationType={Platform.OS === 'web' ? 'none' : 'fade'}
       onRequestClose={handleSkip}
     >
-      <View style={styles.overlay}>
+      <View style={styles.overlay} pointerEvents="box-none">
         <View style={styles.modal}>
           <TouchableOpacity style={styles.closeButton} onPress={handleSkip} testID="modal-dismiss-btn" accessibilityLabel="Dismiss" accessibilityRole="button">
             <Ionicons name="close" size={22} color="#8B939A" />

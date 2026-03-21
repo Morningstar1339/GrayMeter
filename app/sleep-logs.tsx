@@ -359,7 +359,7 @@ export default function SleepLogsScreen() {
         />
 
         <Modal visible={editingLog !== null} transparent animationType="fade">
-          <View style={styles.modalOverlay}>
+          <View style={styles.modalOverlay} pointerEvents="box-none">
             <View style={styles.modalContent}>
               <ThemedText type="subtitle" style={styles.modalTitle}>Edit Sleep Log</ThemedText>
               
