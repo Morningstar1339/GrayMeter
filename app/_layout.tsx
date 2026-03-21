@@ -3,7 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, Alert, AppState as RNAppState, LogBox } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, Alert, AppState as RNAppState, LogBox, Platform } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
@@ -177,7 +177,9 @@ export default function RootLayout() {
         const isMorningNoLog = await isMorningWithoutSleepLog();
         const shouldPrompt = await shouldPromptForSleep();
 
-        if (shouldPrompt && (isMorningNoLog || await isOverdueForSleepLog())) {
+        // Skip sleep prompt on web — it blocks the entire viewport with a fixed overlay
+        // and prevents automated testing tools from interacting with the app
+        if (Platform.OS !== 'web' && shouldPrompt && (isMorningNoLog || await isOverdueForSleepLog())) {
           const overdue = await isOverdueForSleepLog();
           setIsOverdueReminder(overdue || isMorningNoLog);
           setTimeout(() => setShowSleepPrompt(true), 2000);
