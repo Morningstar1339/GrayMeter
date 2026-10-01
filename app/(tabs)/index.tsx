@@ -1,5 +1,5 @@
 import React, { useEffect } from 'react';
-import { StyleSheet, TouchableOpacity, ScrollView, Dimensions, Image, View } from 'react-native';
+import { StyleSheet, TouchableOpacity, ScrollView, Dimensions, Image, View, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { ThemedText } from '@/components/themed-text';
 import { ThemedView } from '@/components/themed-view';
@@ -11,6 +11,12 @@ export default function HomeScreen() {
   const router = useRouter();
   const tintColor = useThemeColor({}, 'tint');
   const backgroundColor = useThemeColor({}, 'background');
+
+  useEffect(() => {
+    if (Platform.OS === 'web') {
+      document.title = 'GrayMeter - Supplement Tracker';
+    }
+  }, []);
 
   useEffect(() => {
     // Database should already be initialized by RootLayout
@@ -81,7 +87,10 @@ export default function HomeScreen() {
             resizeMode="contain"
           />
         </View>
-        <ThemedText type="title" style={styles.title}>GrayMeter</ThemedText>
+        <ThemedText type="title" style={styles.title} accessibilityRole="header">GrayMeter</ThemedText>
+        <ThemedText style={styles.tagline}>
+          Track your supplements, run cognitive tests, and discover what actually works for your brain.
+        </ThemedText>
       </ThemedView>
 
       <ThemedView style={styles.buttonContainer}>
@@ -152,6 +161,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 28,
     fontWeight: 'bold',
+  },
+  tagline: {
+    fontSize: 14,
+    opacity: 0.7,
+    textAlign: 'center',
+    marginTop: 8,
+    paddingHorizontal: 20,
+    lineHeight: 20,
   },
   logoContainer: {
     width: 160,

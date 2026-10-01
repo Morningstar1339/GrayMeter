@@ -381,7 +381,7 @@ export function SleepPrompt({ visible, onClose, isOverdueReminder = false }: Sle
       onRequestClose={handleSkip}
     >
       <View style={styles.overlay}>
-        <View style={[styles.modal, { backgroundColor }]}>
+        <View style={[styles.modal, { backgroundColor: backgroundColor || '#1c1c1e' }]}>
           {step === 'options' && renderOptionsStep()}
           {step === 'sleep-time' && renderSleepTimeStep()}
           {step === 'wake-time' && renderWakeTimeStep()}

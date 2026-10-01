@@ -3,7 +3,7 @@ import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, Alert, AppState as RNAppState, LogBox } from 'react-native';
+import { View, Text, ActivityIndicator, StyleSheet, TouchableOpacity, Alert, AppState as RNAppState, LogBox, Platform } from 'react-native';
 import * as SplashScreen from 'expo-splash-screen';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
@@ -153,7 +153,10 @@ export default function RootLayout() {
   // Request notification permissions and check for sleep prompt when app becomes ready
   useEffect(() => {
     if (appState !== 'ready') return;
-    
+
+    // Skip sleep prompt on web — the sqlite shim returns null/empty so shouldPromptForSleep() always triggers
+    if (Platform.OS === 'web') return;
+
     const initializeNotificationsAndSleep = async () => {
       try {
         const hasPermission = await requestNotificationPermissions();
