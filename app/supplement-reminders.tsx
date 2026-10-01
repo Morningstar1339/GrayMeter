@@ -210,13 +210,16 @@ export default function SupplementRemindersScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
       <ThemedView style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back" testID="btn-supp-reminders-back">
           <Ionicons name="arrow-back" size={24} color={tintColor} />
         </TouchableOpacity>
         <ThemedText type="title" style={styles.title}>Supplement Reminders</ThemedText>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.addHeaderButton, { backgroundColor: tintColor }]}
           onPress={() => setShowAddReminder(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Add reminder"
+          testID="btn-supp-reminders-add"
         >
           <Ionicons name="add" size={20} color="white" />
         </TouchableOpacity>
@@ -261,6 +264,9 @@ export default function SupplementRemindersScreen() {
                 <TouchableOpacity
                   style={styles.deleteButton}
                   onPress={() => handleDeleteReminder(schedule.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete ${schedule.supplement_name || 'supplement'} reminder`}
+                  testID={`btn-supp-reminders-delete-${schedule.id}`}
                 >
                   <Ionicons name="trash-outline" size={18} color="#FF3B30" />
                 </TouchableOpacity>
@@ -305,6 +311,9 @@ export default function SupplementRemindersScreen() {
                           selectedSupplementId === supplement.id && { backgroundColor: (supplement.color || tintColor) + '20', borderColor: supplement.color || tintColor }
                         ]}
                         onPress={() => setSelectedSupplementId(supplement.id)}
+                        accessibilityRole="button"
+                        accessibilityLabel={`Select ${supplement.name}`}
+                        testID={`btn-supp-reminders-supplement-${supplement.id}`}
                       >
                         <View style={[styles.supplementIconSmall, { backgroundColor: supplement.color || tintColor }]}>
                           <Ionicons
@@ -353,6 +362,9 @@ export default function SupplementRemindersScreen() {
                       scheduleMode === 'days' && { backgroundColor: tintColor + '20', borderColor: tintColor }
                     ]}
                     onPress={() => setScheduleMode('days')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Specific days mode"
+                    testID="btn-supp-reminders-mode-days"
                   >
                     <ThemedText style={[
                       styles.scheduleModeButtonText,
@@ -365,6 +377,9 @@ export default function SupplementRemindersScreen() {
                       scheduleMode === 'interval' && { backgroundColor: tintColor + '20', borderColor: tintColor }
                     ]}
                     onPress={() => setScheduleMode('interval')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Every X days mode"
+                    testID="btn-supp-reminders-mode-interval"
                   >
                     <ThemedText style={[
                       styles.scheduleModeButtonText,
@@ -384,6 +399,9 @@ export default function SupplementRemindersScreen() {
                             newReminderDays.includes(day) && { backgroundColor: tintColor, borderColor: tintColor }
                           ]}
                           onPress={() => toggleDay(day)}
+                          accessibilityRole="button"
+                          accessibilityLabel={`Toggle ${day}`}
+                          testID={`btn-supp-reminders-day-${day}`}
                         >
                           <ThemedText style={[
                             styles.dayButtonText,
@@ -399,18 +417,27 @@ export default function SupplementRemindersScreen() {
                       <TouchableOpacity
                         style={[styles.presetButton, { borderColor: tintColor + '30' }]}
                         onPress={() => setDayPreset('daily')}
+                        accessibilityRole="button"
+                        accessibilityLabel="Daily preset"
+                        testID="btn-supp-reminders-preset-daily"
                       >
                         <ThemedText style={styles.presetButtonText}>Daily</ThemedText>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.presetButton, { borderColor: tintColor + '30' }]}
                         onPress={() => setDayPreset('weekdays')}
+                        accessibilityRole="button"
+                        accessibilityLabel="Weekdays preset"
+                        testID="btn-supp-reminders-preset-weekdays"
                       >
                         <ThemedText style={styles.presetButtonText}>Weekdays</ThemedText>
                       </TouchableOpacity>
                       <TouchableOpacity
                         style={[styles.presetButton, { borderColor: tintColor + '30' }]}
                         onPress={() => setDayPreset('weekends')}
+                        accessibilityRole="button"
+                        accessibilityLabel="Weekends preset"
+                        testID="btn-supp-reminders-preset-weekends"
                       >
                         <ThemedText style={styles.presetButtonText}>Weekends</ThemedText>
                       </TouchableOpacity>
@@ -427,14 +454,19 @@ export default function SupplementRemindersScreen() {
                         placeholder="7"
                         placeholderTextColor="#8E8E93"
                         keyboardType="numeric"
+                        accessibilityLabel="Interval in days"
+                        testID="input-supp-reminders-interval"
                       />
                       <ThemedText style={styles.intervalUnit}>days</ThemedText>
                     </View>
                     
                     <ThemedText style={styles.inputLabel}>Starting from:</ThemedText>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       style={[styles.datePickerButton, { borderColor: tintColor + '30' }]}
                       onPress={() => setShowStartDatePicker(true)}
+                      accessibilityRole="button"
+                      accessibilityLabel="Select start date"
+                      testID="btn-supp-reminders-start-date"
                     >
                       <Ionicons name="calendar-outline" size={20} color={tintColor} />
                       <ThemedText style={styles.datePickerButtonText}>
@@ -463,13 +495,19 @@ export default function SupplementRemindersScreen() {
                   <TouchableOpacity
                     style={styles.cancelButton}
                     onPress={() => setShowAddReminder(false)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Cancel"
+                    testID="btn-supp-reminders-cancel"
                   >
                     <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
                   </TouchableOpacity>
-                  
+
                   <TouchableOpacity
                     style={[styles.addButton, { backgroundColor: tintColor }]}
                     onPress={handleAddReminder}
+                    accessibilityRole="button"
+                    accessibilityLabel="Add reminder"
+                    testID="btn-supp-reminders-save"
                   >
                     <ThemedText style={styles.addButtonText}>Add Reminder</ThemedText>
                   </TouchableOpacity>

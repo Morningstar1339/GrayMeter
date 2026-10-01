@@ -209,13 +209,16 @@ export default function CognitiveTestRemindersScreen() {
         keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
       >
       <ThemedView style={styles.header}>
-        <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+        <TouchableOpacity onPress={handleBack} style={styles.backButton} accessibilityRole="button" accessibilityLabel="Go back" testID="btn-test-reminders-back">
           <Ionicons name="arrow-back" size={24} color={tintColor} />
         </TouchableOpacity>
         <ThemedText type="title" style={styles.title}>Test Reminders</ThemedText>
-        <TouchableOpacity 
+        <TouchableOpacity
           style={[styles.addHeaderButton, { backgroundColor: tintColor }]}
           onPress={() => setShowAddReminder(true)}
+          accessibilityRole="button"
+          accessibilityLabel="Add reminder"
+          testID="btn-test-reminders-add"
         >
           <Ionicons name="add" size={20} color="white" />
         </TouchableOpacity>
@@ -259,6 +262,9 @@ export default function CognitiveTestRemindersScreen() {
                 <TouchableOpacity
                   style={styles.deleteButton}
                   onPress={() => handleDeleteReminder(schedule.id)}
+                  accessibilityRole="button"
+                  accessibilityLabel={`Delete ${getTestTypeName(schedule.test_type)} reminder`}
+                  testID={`btn-test-reminders-delete-${schedule.id}`}
                 >
                   <Ionicons name="trash-outline" size={18} color="#FF3B30" />
                 </TouchableOpacity>
@@ -294,6 +300,9 @@ export default function CognitiveTestRemindersScreen() {
                       selectedTestType === testType.id && { backgroundColor: tintColor + '20', borderColor: tintColor }
                     ]}
                     onPress={() => setSelectedTestType(testType.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Select ${testType.name}`}
+                    testID={`btn-test-reminders-type-${testType.id}`}
                   >
                     <Ionicons
                       name={testType.icon as any}
@@ -340,6 +349,9 @@ export default function CognitiveTestRemindersScreen() {
                   scheduleMode === 'days' && { backgroundColor: tintColor + '20', borderColor: tintColor }
                 ]}
                 onPress={() => setScheduleMode('days')}
+                accessibilityRole="button"
+                accessibilityLabel="Specific days mode"
+                testID="btn-test-reminders-mode-days"
               >
                 <ThemedText style={[
                   styles.scheduleModeButtonText,
@@ -352,6 +364,9 @@ export default function CognitiveTestRemindersScreen() {
                   scheduleMode === 'interval' && { backgroundColor: tintColor + '20', borderColor: tintColor }
                 ]}
                 onPress={() => setScheduleMode('interval')}
+                accessibilityRole="button"
+                accessibilityLabel="Every X days mode"
+                testID="btn-test-reminders-mode-interval"
               >
                 <ThemedText style={[
                   styles.scheduleModeButtonText,
@@ -371,6 +386,9 @@ export default function CognitiveTestRemindersScreen() {
                         newReminderDays.includes(day) && { backgroundColor: tintColor, borderColor: tintColor }
                       ]}
                       onPress={() => toggleDay(day)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Toggle ${day}`}
+                      testID={`btn-test-reminders-day-${day}`}
                     >
                       <ThemedText style={[
                         styles.dayButtonText,
@@ -386,18 +404,27 @@ export default function CognitiveTestRemindersScreen() {
                   <TouchableOpacity
                     style={[styles.presetButton, { borderColor: tintColor + '30' }]}
                     onPress={() => setDayPreset('daily')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Daily preset"
+                    testID="btn-test-reminders-preset-daily"
                   >
                     <ThemedText style={styles.presetButtonText}>Daily</ThemedText>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.presetButton, { borderColor: tintColor + '30' }]}
                     onPress={() => setDayPreset('weekdays')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Weekdays preset"
+                    testID="btn-test-reminders-preset-weekdays"
                   >
                     <ThemedText style={styles.presetButtonText}>Weekdays</ThemedText>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.presetButton, { borderColor: tintColor + '30' }]}
                     onPress={() => setDayPreset('weekends')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Weekends preset"
+                    testID="btn-test-reminders-preset-weekends"
                   >
                     <ThemedText style={styles.presetButtonText}>Weekends</ThemedText>
                   </TouchableOpacity>
@@ -414,14 +441,19 @@ export default function CognitiveTestRemindersScreen() {
                     placeholder="7"
                     placeholderTextColor="#8E8E93"
                     keyboardType="numeric"
+                    accessibilityLabel="Interval in days"
+                    testID="input-test-reminders-interval"
                   />
                   <ThemedText style={styles.intervalUnit}>days</ThemedText>
                 </View>
                 
                 <ThemedText style={styles.inputLabel}>Starting from:</ThemedText>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={[styles.datePickerButton, { borderColor: tintColor + '30' }]}
                   onPress={() => setShowStartDatePicker(true)}
+                  accessibilityRole="button"
+                  accessibilityLabel="Select start date"
+                  testID="btn-test-reminders-start-date"
                 >
                   <Ionicons name="calendar-outline" size={20} color={tintColor} />
                   <ThemedText style={styles.datePickerButtonText}>
@@ -450,13 +482,19 @@ export default function CognitiveTestRemindersScreen() {
               <TouchableOpacity
                 style={styles.cancelButton}
                 onPress={() => setShowAddReminder(false)}
+                accessibilityRole="button"
+                accessibilityLabel="Cancel"
+                testID="btn-test-reminders-cancel"
               >
                 <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
               </TouchableOpacity>
-              
+
               <TouchableOpacity
                 style={[styles.addButton, { backgroundColor: tintColor }]}
                 onPress={handleAddReminder}
+                accessibilityRole="button"
+                accessibilityLabel="Add reminder"
+                testID="btn-test-reminders-save"
               >
                 <ThemedText style={styles.addButtonText}>Add Reminder</ThemedText>
               </TouchableOpacity>

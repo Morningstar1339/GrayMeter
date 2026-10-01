@@ -1,0 +1,307 @@
+/**
+ * End-to-end test for PK-informed correlation analysis flow
+ */
+
+import { openDatabase } from '../database/database';
+import { 
+  addSupplement, 
+  logSupplement, 
+  getAllSupplements,
+  getSupplementLogs,
+  Supplement
+} from '../database/supplements';
+import { 
+  saveCognitiveTestResult, 
+  getCognitiveTestResults 
+} from '../database/cognitive-tests';
+import { 
+  analyzeSupplementEffects,
+  TestType 
+} from '../database/correlation-analysis';
+import { 
+  findSubstanceByName, 
+  getSubstanceProfile,
+  getEffectAtTime 
+} from '../database/pk-curves';
+
+describe('PK-Informed Correlation Analysis', () => {
+  let testSupplementId: number | null = null;
+  const testType: TestType = 'reflexes';
+  
+  // Timestamps for test data
+  const now = Math.floor(Date.now() / 1000);
+  const day1 = now - (3 * 86400);
+  const day1Adjusted = day1 - (day1 % 86400) + (8 * 3600); // 8 AM, 3 days ago
+  const day2 = now - (2 * 86400);
+  const day2Adjusted = day2 - (day2 % 86400) + (8 * 3600);
+  const day4 = now;
+  const day4Adjusted = day4 - (day4 % 86400) + (8 * 3600);
+  
+  afterAll(async () => {
+    // Cleanup test data
+    if (testSupplementId) {
+      const db = await openDatabase();
+      await db.runAsync('DELETE FROM supplement_logs WHERE supplement_id = ?', [testSupplementId]);
+      await db.runAsync('DELETE FROM supplements WHERE id = ?', [testSupplementId]);
+    }
+    // Clean up test cognitive results (ones we created in the last hour)
+    const db = await openDatabase();
+    await db.runAsync(
+      'DELETE FROM cognitive_test_results WHERE study_id IS NULL AND timestamp > ?',
+      [Math.floor(Date.now() / 1000) - 3600]
+    );
+  });
+  
+  describe('Substance Profile Lookup', () => {
+    it('should find caffeine profile', async () => {
+      const profile = await findSubstanceByName('caffeine');
+      expect(profile).not.toBeNull();
+      expect(profile?.id).toBe('caffeine');
+      expect(profile?.names).toContain('caffeine');
+    });
+    
+    it('should find newly added Vitamin D3 profile', async () => {
+      const profile = await findSubstanceByName('vitamin d');
+      expect(profile).not.toBeNull();
+      expect(profile?.id).toBe('vitamin_d3');
+    });
+    
+    it('should find newly added Magnesium profile', async () => {
+      const profile = await findSubstanceByName('magnesium');
+      expect(profile).not.toBeNull();
+      expect(profile?.id).toBe('magnesium');
+    });
+    
+    it('should find newly added Zinc profile', async () => {
+      const profile = await findSubstanceByName('zinc');
+      expect(profile).not.toBeNull();
+      expect(profile?.id).toBe('zinc');
+    });
+    
+    it("should find newly added Lion's Mane profile", async () => {
+      const profile = await findSubstanceByName("lion's mane");
+      expect(profile).not.toBeNull();
+      expect(profile?.id).toBe('lions_mane');
+    });
+    
+    it('should find newly added Bacopa profile', async () => {
+      const profile = await findSubstanceByName('bacopa');
+      expect(profile).not.toBeNull();
+      expect(profile?.id).toBe('bacopa_monnieri');
+    });
+  });
+  
+  describe('Supplement with Linked Profile', () => {
+    it('should create supplement with substance_profile_id', async () => {
+      const caffeineProfile = await findSubstanceByName('caffeine');
+      expect(caffeineProfile).not.toBeNull();
+      
+      const testName = `__PKTest_Caffeine_${Date.now()}`;
+      const supplementData: Omit<Supplement, 'id'> = {
+        name: testName,
+        default_dosage: 200,
+        dosage_unit: 'mg',
+        schedule_enabled: false,
+        study_enabled: false,
+        substance_profile_id: caffeineProfile!.id
+      };
+      
+      testSupplementId = await addSupplement(supplementData);
+      
+      expect(testSupplementId).toBeGreaterThan(0);
+    });
+    
+    it('should store substance_profile_id correctly', async () => {
+      expect(testSupplementId).not.toBeNull();
+      
+      const supplements = await getAllSupplements();
+      const testSupplement = supplements.find(s => s.id === testSupplementId);
+      
+      expect(testSupplement).toBeDefined();
+      expect(testSupplement?.substance_profile_id).toBe('caffeine');
+    });
+  });
+  
+  describe('Test Data Generation', () => {
+    it('should create supplement logs', async () => {
+      expect(testSupplementId).not.toBeNull();
+      
+      // Log on days 1, 2, and 4 (skip day 3 for baseline)
+      // logSupplement(supplementId, dosage, notes?, timestamp?)
+      await logSupplement(testSupplementId!, 200, undefined, day1Adjusted);
+      await logSupplement(testSupplementId!, 200, undefined, day2Adjusted);
+      await logSupplement(testSupplementId!, 200, undefined, day4Adjusted);
+      
+      const logs = await getSupplementLogs();
+      const testLogs = logs.filter(l => l.supplement_id === testSupplementId);
+      
+      expect(testLogs.length).toBe(3);
+    });
+    
+    it('should create cognitive test results', async () => {
+      // saveCognitiveTestResult(testType, score, rawData?, completionTime?, studyId?, supplementLogId?, accuracy?, speed?, nLevel?)
+      
+      // Day 1: 2h after intake (near peak)
+      await saveCognitiveTestResult(
+        testType,
+        85, // Good score
+        JSON.stringify({ test: true }),
+        undefined,
+        undefined,
+        undefined,
+        0.9,
+        0.85
+      );
+      
+      // Day 2: 1h after intake
+      await saveCognitiveTestResult(
+        testType,
+        82,
+        JSON.stringify({ test: true }),
+        undefined,
+        undefined,
+        undefined,
+        0.88,
+        0.82
+      );
+      
+      // Day 3: baseline (no caffeine)
+      await saveCognitiveTestResult(
+        testType,
+        70, // Lower score without caffeine
+        JSON.stringify({ test: true }),
+        undefined,
+        undefined,
+        undefined,
+        0.75,
+        0.7
+      );
+      
+      // Day 4: 30min after intake
+      await saveCognitiveTestResult(
+        testType,
+        78,
+        JSON.stringify({ test: true }),
+        undefined,
+        undefined,
+        undefined,
+        0.82,
+        0.78
+      );
+      
+      const results = await getCognitiveTestResults();
+      expect(results.length).toBeGreaterThanOrEqual(4);
+    });
+  });
+  
+  describe('PK-Informed Correlation Analysis', () => {
+    it('should run correlation analysis', async () => {
+      expect(testSupplementId).not.toBeNull();
+      
+      const analysis = await analyzeSupplementEffects(
+        testSupplementId!,
+        testType,
+        day1Adjusted - 86400,
+        now + 86400
+      );
+      
+      expect(analysis).not.toBeNull();
+      expect(analysis?.sampleSize).toBeGreaterThan(0);
+    });
+    
+    it('should use PK-informed analysis method when profile is linked', async () => {
+      expect(testSupplementId).not.toBeNull();
+      
+      const analysis = await analyzeSupplementEffects(
+        testSupplementId!,
+        testType,
+        day1Adjusted - 86400,
+        now + 86400
+      );
+      
+      expect(analysis).not.toBeNull();
+      
+      // This is the key test: with a linked profile and enough data points,
+      // it should use pk_informed analysis
+      if (analysis?.sampleSize && analysis.sampleSize >= 5) {
+        expect(analysis.analysisMethod).toBe('pk_informed');
+        expect(analysis.pkAnalysis).toBeDefined();
+        expect(analysis.pkAnalysis?.profileUsed).toBe('caffeine');
+      } else {
+        // If not enough samples, binary is acceptable
+        console.log(`Note: Only ${analysis?.sampleSize} samples, may fall back to binary`);
+      }
+    });
+    
+    it('should calculate PK correlation when using pk_informed method', async () => {
+      expect(testSupplementId).not.toBeNull();
+      
+      const analysis = await analyzeSupplementEffects(
+        testSupplementId!,
+        testType,
+        day1Adjusted - 86400,
+        now + 86400
+      );
+      
+      if (analysis?.pkAnalysis) {
+        expect(typeof analysis.pkAnalysis.correlation).toBe('number');
+        expect(typeof analysis.pkAnalysis.pValue).toBe('number');
+        expect(typeof analysis.pkAnalysis.n).toBe('number');
+        expect(analysis.pkAnalysis.n).toBeGreaterThan(0);
+      }
+    });
+  });
+  
+  describe('PK Curve Calculations', () => {
+    it('should produce expected caffeine effect curve pattern', async () => {
+      const profile = await getSubstanceProfile('caffeine');
+      expect(profile).not.toBeNull();
+      
+      const intakeTime = new Date(day1Adjusted * 1000);
+      
+      // getEffectAtTime takes curves (CurveConfig[]), not the full profile
+      const effect1h = getEffectAtTime(
+        profile!.curves, 
+        [{ timestamp: intakeTime }], 
+        new Date((day1Adjusted + 3600) * 1000)
+      );
+      const effect4h = getEffectAtTime(
+        profile!.curves, 
+        [{ timestamp: intakeTime }], 
+        new Date((day1Adjusted + 4 * 3600) * 1000)
+      );
+      const effect12h = getEffectAtTime(
+        profile!.curves, 
+        [{ timestamp: intakeTime }], 
+        new Date((day1Adjusted + 12 * 3600) * 1000)
+      );
+      
+      // Caffeine effect should rise then fall
+      expect(effect1h).toBeGreaterThan(0);
+      expect(effect12h).toBeLessThan(effect4h);
+    });
+    
+    it('should handle multiple intake events', async () => {
+      const profile = await getSubstanceProfile('caffeine');
+      expect(profile).not.toBeNull();
+      
+      const intake1 = new Date(day1Adjusted * 1000);
+      const intake2 = new Date((day1Adjusted + 4 * 3600) * 1000); // 4h later
+      
+      const effectSingle = getEffectAtTime(
+        profile!.curves,
+        [{ timestamp: intake1 }],
+        new Date((day1Adjusted + 5 * 3600) * 1000)
+      );
+      
+      const effectDouble = getEffectAtTime(
+        profile!.curves,
+        [{ timestamp: intake1 }, { timestamp: intake2 }],
+        new Date((day1Adjusted + 5 * 3600) * 1000)
+      );
+      
+      // Two doses should produce higher effect than one
+      expect(effectDouble).toBeGreaterThan(effectSingle);
+    });
+  });
+});

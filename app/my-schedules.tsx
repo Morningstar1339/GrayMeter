@@ -512,6 +512,9 @@ export default function MySchedulesScreen() {
                         selectedSupplementId === supplement.id && { backgroundColor: (supplement.color || tintColor) + '20', borderColor: supplement.color || tintColor }
                       ]}
                       onPress={() => setSelectedSupplementId(supplement.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Select ${supplement.name}`}
+                      testID={`btn-schedules-supplement-${supplement.id}`}
                     >
                       <View style={[styles.itemIconSmall, { backgroundColor: supplement.color || tintColor }]}>
                         <Ionicons name={(supplement.icon_id || 'medical') as any} size={16} color="white" />
@@ -540,6 +543,9 @@ export default function MySchedulesScreen() {
                       selectedTestType === testType.id && { backgroundColor: tintColor + '20', borderColor: tintColor }
                     ]}
                     onPress={() => setSelectedTestType(testType.id)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`Select ${testType.name}`}
+                    testID={`btn-schedules-test-type-${testType.id}`}
                   >
                     <Ionicons name={testType.icon as any} size={18} color={selectedTestType === testType.id ? tintColor : '#8E8E93'} />
                     <ThemedText style={[styles.itemButtonText, selectedTestType === testType.id && { color: tintColor }]}>
@@ -573,6 +579,9 @@ export default function MySchedulesScreen() {
                         selectedActivityId === activity.id && { backgroundColor: (activity.color || '#FF9500') + '20', borderColor: activity.color || '#FF9500' }
                       ]}
                       onPress={() => setSelectedActivityId(activity.id)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Select ${activity.name}`}
+                      testID={`btn-schedules-activity-${activity.id}`}
                     >
                       <View style={[styles.itemIconSmall, { backgroundColor: activity.color || '#FF9500' }]}>
                         <Ionicons name={(activity.icon_id || 'fitness') as any} size={16} color="white" />
@@ -616,12 +625,18 @@ export default function MySchedulesScreen() {
               <TouchableOpacity
                 style={[styles.scheduleModeButton, scheduleMode === 'days' && { backgroundColor: tintColor + '20', borderColor: tintColor }]}
                 onPress={() => setScheduleMode('days')}
+                accessibilityRole="button"
+                accessibilityLabel="Specific days mode"
+                testID="btn-schedules-mode-days"
               >
                 <ThemedText style={[styles.scheduleModeButtonText, scheduleMode === 'days' && { color: tintColor }]}>Specific Days</ThemedText>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.scheduleModeButton, scheduleMode === 'interval' && { backgroundColor: tintColor + '20', borderColor: tintColor }]}
                 onPress={() => setScheduleMode('interval')}
+                accessibilityRole="button"
+                accessibilityLabel="Every X days mode"
+                testID="btn-schedules-mode-interval"
               >
                 <ThemedText style={[styles.scheduleModeButtonText, scheduleMode === 'interval' && { color: tintColor }]}>Every X Days</ThemedText>
               </TouchableOpacity>
@@ -635,6 +650,9 @@ export default function MySchedulesScreen() {
                       key={day}
                       style={[styles.dayButton, selectedDays.includes(day) && { backgroundColor: tintColor, borderColor: tintColor }]}
                       onPress={() => toggleDay(day)}
+                      accessibilityRole="button"
+                      accessibilityLabel={`Toggle ${day}`}
+                      testID={`btn-schedules-day-${day}`}
                     >
                       <ThemedText style={[styles.dayButtonText, selectedDays.includes(day) && { color: 'white' }]}>
                         {day.charAt(0).toUpperCase()}
@@ -643,13 +661,13 @@ export default function MySchedulesScreen() {
                   ))}
                 </View>
                 <View style={styles.presetButtons}>
-                  <TouchableOpacity style={[styles.presetButton, { borderColor: tintColor + '30' }]} onPress={() => setDayPreset('daily')}>
+                  <TouchableOpacity style={[styles.presetButton, { borderColor: tintColor + '30' }]} onPress={() => setDayPreset('daily')} accessibilityRole="button" accessibilityLabel="Daily preset" testID="btn-schedules-preset-daily">
                     <ThemedText style={styles.presetButtonText}>Daily</ThemedText>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.presetButton, { borderColor: tintColor + '30' }]} onPress={() => setDayPreset('weekdays')}>
+                  <TouchableOpacity style={[styles.presetButton, { borderColor: tintColor + '30' }]} onPress={() => setDayPreset('weekdays')} accessibilityRole="button" accessibilityLabel="Weekdays preset" testID="btn-schedules-preset-weekdays">
                     <ThemedText style={styles.presetButtonText}>Weekdays</ThemedText>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.presetButton, { borderColor: tintColor + '30' }]} onPress={() => setDayPreset('weekends')}>
+                  <TouchableOpacity style={[styles.presetButton, { borderColor: tintColor + '30' }]} onPress={() => setDayPreset('weekends')} accessibilityRole="button" accessibilityLabel="Weekends preset" testID="btn-schedules-preset-weekends">
                     <ThemedText style={styles.presetButtonText}>Weekends</ThemedText>
                   </TouchableOpacity>
                 </View>
@@ -665,6 +683,8 @@ export default function MySchedulesScreen() {
                     placeholder="7"
                     placeholderTextColor="#8E8E93"
                     keyboardType="numeric"
+                    accessibilityLabel="Interval in days"
+                    testID="input-schedules-interval"
                   />
                   <ThemedText style={styles.intervalUnit}>days</ThemedText>
                 </View>
@@ -673,6 +693,9 @@ export default function MySchedulesScreen() {
                   <TouchableOpacity
                     style={[styles.startDateButton, { borderColor: tintColor + '30' }]}
                     onPress={() => setShowStartDatePicker(true)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Select start date"
+                    testID="btn-schedules-start-date"
                   >
                     <ThemedText style={styles.startDateText}>
                       {startDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
@@ -684,10 +707,10 @@ export default function MySchedulesScreen() {
             )}
 
             <View style={styles.actionButtons}>
-              <TouchableOpacity style={styles.cancelButton} onPress={resetForm}>
+              <TouchableOpacity style={styles.cancelButton} onPress={resetForm} accessibilityRole="button" accessibilityLabel="Cancel" testID="btn-schedules-cancel">
                 <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
               </TouchableOpacity>
-              <TouchableOpacity style={[styles.addButton, { backgroundColor: tintColor }]} onPress={handleAddReminder}>
+              <TouchableOpacity style={[styles.addButton, { backgroundColor: tintColor }]} onPress={handleAddReminder} accessibilityRole="button" accessibilityLabel={editingScheduleId ? 'Save changes' : 'Add reminder'} testID="btn-schedules-save">
                 <ThemedText style={styles.addButtonText}>{editingScheduleId ? 'Save Changes' : 'Add Reminder'}</ThemedText>
               </TouchableOpacity>
             </View>
@@ -695,7 +718,7 @@ export default function MySchedulesScreen() {
         )}
 
         {noItems && (
-          <TouchableOpacity style={styles.cancelButton} onPress={resetForm}>
+          <TouchableOpacity style={styles.cancelButton} onPress={resetForm} accessibilityRole="button" accessibilityLabel="Cancel" testID="btn-schedules-cancel-no-items">
             <ThemedText style={styles.cancelButtonText}>Cancel</ThemedText>
           </TouchableOpacity>
         )}
@@ -709,13 +732,16 @@ export default function MySchedulesScreen() {
     <ThemedView style={styles.container} safeArea>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
         <ThemedView style={styles.header}>
-          <TouchableOpacity onPress={handleHomePress} style={styles.homeButton}>
+          <TouchableOpacity onPress={handleHomePress} style={styles.homeButton} accessibilityRole="button" accessibilityLabel="Go home" testID="btn-schedules-home">
             <Ionicons name="home-outline" size={24} color={tintColor} />
           </TouchableOpacity>
           <ThemedText type="title" style={styles.title}>My Schedules</ThemedText>
           <TouchableOpacity
             style={[styles.addHeaderButton, { backgroundColor: tintColor }]}
             onPress={() => setShowAddForm(true)}
+            accessibilityRole="button"
+            accessibilityLabel="Add schedule"
+            testID="btn-schedules-add"
           >
             <Ionicons name="add" size={20} color="white" />
           </TouchableOpacity>
@@ -728,6 +754,9 @@ export default function MySchedulesScreen() {
                 key={tab.key}
                 style={[styles.tab, activeTab === tab.key && { backgroundColor: tintColor }]}
                 onPress={() => { setActiveTab(tab.key); setShowAddForm(false); }}
+                accessibilityRole="button"
+                accessibilityLabel={`${tab.label} tab`}
+                testID={`btn-schedules-tab-${tab.key}`}
               >
                 <Ionicons name={tab.icon as any} size={16} color={activeTab === tab.key ? 'white' : tintColor} />
                 <ThemedText style={[styles.tabText, activeTab === tab.key && { color: 'white' }]}>{tab.label}</ThemedText>
@@ -767,10 +796,10 @@ export default function MySchedulesScreen() {
                     thumbColor={schedule.enabled ? tintColor : '#f4f3f4'}
                     style={styles.scheduleSwitch}
                   />
-                  <TouchableOpacity style={styles.editButton} onPress={() => handleEditReminder(schedule)}>
+                  <TouchableOpacity style={styles.editButton} onPress={() => handleEditReminder(schedule)} accessibilityRole="button" accessibilityLabel={`Edit ${getScheduleName(schedule)} schedule`} testID={`btn-schedules-edit-${schedule.id}`}>
                     <Ionicons name="pencil-outline" size={18} color={tintColor} />
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.deleteButton} onPress={() => handleDeleteReminder(schedule.id)}>
+                  <TouchableOpacity style={styles.deleteButton} onPress={() => handleDeleteReminder(schedule.id)} accessibilityRole="button" accessibilityLabel={`Delete ${getScheduleName(schedule)} schedule`} testID={`btn-schedules-delete-${schedule.id}`}>
                     <Ionicons name="trash-outline" size={18} color="#FF3B30" />
                   </TouchableOpacity>
                 </View>
@@ -785,11 +814,11 @@ export default function MySchedulesScreen() {
           <View style={styles.datePickerOverlay}>
             <View style={styles.datePickerContainer}>
               <View style={styles.datePickerHeader}>
-                <TouchableOpacity onPress={() => setShowStartDatePicker(false)}>
+                <TouchableOpacity onPress={() => setShowStartDatePicker(false)} accessibilityRole="button" accessibilityLabel="Cancel date picker" testID="btn-schedules-date-cancel">
                   <ThemedText style={styles.datePickerCancel}>Cancel</ThemedText>
                 </TouchableOpacity>
                 <ThemedText style={styles.datePickerTitle}>Start Date</ThemedText>
-                <TouchableOpacity onPress={() => setShowStartDatePicker(false)}>
+                <TouchableOpacity onPress={() => setShowStartDatePicker(false)} accessibilityRole="button" accessibilityLabel="Confirm date" testID="btn-schedules-date-done">
                   <ThemedText style={[styles.datePickerDone, { color: tintColor }]}>Done</ThemedText>
                 </TouchableOpacity>
               </View>

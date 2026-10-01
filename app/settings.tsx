@@ -478,6 +478,9 @@ export default function SettingsScreen() {
                         settings.bedtimeAmPm === 'AM' && styles.ampmButtonSelected
                       ]}
                       onPress={() => setSettings({...settings, bedtimeAmPm: 'AM'})}
+                      accessibilityRole="button"
+                      accessibilityLabel="Select AM"
+                      testID="btn-settings-am"
                     >
                       <ThemedText style={[
                         styles.ampmText,
@@ -492,6 +495,9 @@ export default function SettingsScreen() {
                         settings.bedtimeAmPm === 'PM' && styles.ampmButtonSelected
                       ]}
                       onPress={() => setSettings({...settings, bedtimeAmPm: 'PM'})}
+                      accessibilityRole="button"
+                      accessibilityLabel="Select PM"
+                      testID="btn-settings-pm"
                     >
                       <ThemedText style={[
                         styles.ampmText,
@@ -548,6 +554,9 @@ export default function SettingsScreen() {
                     result.message
                   );
                 }}
+                accessibilityRole="button"
+                accessibilityLabel="Test notification in 10 seconds"
+                testID="btn-settings-test-notification"
               >
                 <ThemedText style={styles.notifTestButtonText}>Test Notification (10s)</ThemedText>
                 <ThemedText style={styles.notifTestButtonSubtext}>Sends a notification in 10 seconds</ThemedText>
@@ -555,6 +564,9 @@ export default function SettingsScreen() {
               
               <TouchableOpacity
                 style={[styles.notifTestButton, { marginTop: 8, backgroundColor: '#5856D6' }]}
+                accessibilityRole="button"
+                accessibilityLabel="Show notification debug info"
+                testID="btn-settings-debug-info"
                 onPress={async () => {
                   try {
                     const info = await getNotificationDebugInfo();
@@ -618,6 +630,9 @@ export default function SettingsScreen() {
                 style={[styles.seedButton, seedingData && styles.buttonDisabled]}
                 onPress={handleSeedData}
                 disabled={seedingData || clearingData}
+                accessibilityRole="button"
+                accessibilityLabel="Seed test data"
+                testID="btn-settings-seed-data"
               >
                 <ThemedText style={styles.seedButtonText}>
                   {seedingData ? 'Seeding...' : 'Seed Test Data'}
@@ -632,6 +647,9 @@ export default function SettingsScreen() {
                   style={[styles.clearTestButton, { marginTop: 8 }, clearingData && styles.buttonDisabled]}
                   onPress={handleClearTestData}
                   disabled={seedingData || clearingData}
+                  accessibilityRole="button"
+                  accessibilityLabel="Clear test data only"
+                  testID="btn-settings-clear-test-data"
                 >
                   <ThemedText style={styles.clearTestButtonText}>
                     {clearingData ? 'Clearing...' : 'Clear Test Data Only'}
@@ -648,6 +666,9 @@ export default function SettingsScreen() {
                     style={[styles.dangerButton, { marginTop: 8 }, clearingData && styles.buttonDisabled]}
                     onPress={handleClearAllData}
                     disabled={seedingData || clearingData}
+                    accessibilityRole="button"
+                    accessibilityLabel="Clear all data"
+                    testID="btn-settings-clear-all-data"
                   >
                     <ThemedText style={styles.dangerButtonText}>Clear ALL Data</ThemedText>
                     <ThemedText style={styles.dangerButtonSubtext}>
@@ -658,6 +679,9 @@ export default function SettingsScreen() {
                   <TouchableOpacity
                     style={[styles.debugButton, { marginTop: 8 }]}
                     onPress={() => router.push('/database-debug')}
+                    accessibilityRole="button"
+                    accessibilityLabel="Database debug"
+                    testID="btn-settings-database-debug"
                   >
                     <ThemedText style={styles.debugButtonText}>Database Debug</ThemedText>
                     <ThemedText style={styles.debugButtonSubtext}>Diagnose database issues</ThemedText>
@@ -666,6 +690,9 @@ export default function SettingsScreen() {
                   <TouchableOpacity
                     style={[styles.debugButton, { marginTop: 8 }]}
                     onPress={() => router.push('/invariant-test' as any)}
+                    accessibilityRole="button"
+                    accessibilityLabel="Invariant tests"
+                    testID="btn-settings-invariant-tests"
                   >
                     <ThemedText style={styles.debugButtonText}>Invariant Tests</ThemedText>
                     <ThemedText style={styles.debugButtonSubtext}>Test database sanity checks</ThemedText>
@@ -677,6 +704,9 @@ export default function SettingsScreen() {
                 style={[styles.seedButton, { marginTop: 16, backgroundColor: '#5856D6' }, importingSubstances && styles.buttonDisabled]}
                 onPress={handleImportSubstanceDatabase}
                 disabled={importingSubstances}
+                accessibilityRole="button"
+                accessibilityLabel="Import substance database"
+                testID="btn-settings-import-substances"
               >
                 <ThemedText style={styles.seedButtonText}>
                   {importingSubstances ? 'Importing...' : 'Import Substance Database'}
@@ -693,6 +723,9 @@ export default function SettingsScreen() {
                     style={[styles.backupButton, exporting && styles.buttonDisabled]}
                     onPress={handleExportData}
                     disabled={exporting || importing}
+                    accessibilityRole="button"
+                    accessibilityLabel="Export data"
+                    testID="btn-settings-export-data"
                   >
                     <ThemedText style={styles.backupButtonText}>
                       {exporting ? 'Exporting...' : 'Export Data'}
@@ -702,6 +735,9 @@ export default function SettingsScreen() {
                     style={[styles.backupButton, styles.importButton, importing && styles.buttonDisabled]}
                     onPress={handleImportData}
                     disabled={exporting || importing}
+                    accessibilityRole="button"
+                    accessibilityLabel="Import data"
+                    testID="btn-settings-import-data"
                   >
                     <ThemedText style={styles.backupButtonText}>
                       {importing ? 'Importing...' : 'Import Data'}
@@ -727,13 +763,19 @@ export default function SettingsScreen() {
             <TouchableOpacity
               style={styles.saveButton}
               onPress={() => saveSettings(settings)}
+              accessibilityRole="button"
+              accessibilityLabel="Save bedtime"
+              testID="btn-settings-save"
             >
               <ThemedText style={styles.saveButtonText}>Save Bedtime</ThemedText>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-              style={styles.backButton} 
+            <TouchableOpacity
+              style={styles.backButton}
               onPress={() => router.back()}
+              accessibilityRole="button"
+              accessibilityLabel="Go back"
+              testID="btn-settings-back"
             >
               <ThemedText style={styles.backButtonText}>Back</ThemedText>
             </TouchableOpacity>
